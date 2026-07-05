@@ -38,7 +38,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 - **Acceptance:** `uv run acquire-intel crawl demo` runs the no-op spider and logs a run.
 - **Verify:** run it; show structured log. (ADR-0002)
 
-### T0.5 — Flask skeleton + health
+### [x] T0.5 — Flask skeleton + health
 - **Goal:** Flask app, problem+json error handler, `GET /health` (200/503 by DB reachability).
 - **Acceptance:** `/health` 200 when DB up, 503 when down; a thrown error → problem+json.
 - **Verify:** curl both states. (ADR-0007, docs/07)

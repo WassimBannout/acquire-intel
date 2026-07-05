@@ -17,6 +17,7 @@ dependencies = [
     "psycopg[binary]>=3.1",     # T0.3: PostgreSQL driver (matches +psycopg URL)
     "scrapy>=2.11",             # T0.4: crawl backbone (ADR-0002)
     "structlog>=24.1",          # T0.4: structured JSON logging with run_id (docs/07)
+    "flask>=3.0",               # T0.5: read/serve API + dashboard (ADR-0007)
 ]
 
 [project.scripts]

@@ -141,5 +141,9 @@ repo root: `pyproject.toml` (uv), `src/acquire_intel/` with the eight concern-mo
   config, no-op spider, source-registry stub); `acquire-intel crawl <source>` runs a one-shot
   crawl; structlog JSON logging (`monitoring/logging.py`) routes our events *and* Scrapy's
   stdlib logs through one stream, each carrying `run_id`. `scrapy` + `structlog` added.
-- **Next: T0.5 — Flask skeleton + health** (`GET /health` 200/503 by DB reachability,
-  problem+json errors).
+- **T0.5 — Flask skeleton + health ✅** — Flask app factory (`create_app`, base path from
+  config); RFC 9457 `application/problem+json` handlers (app/HTTP/uncaught, internals never
+  leaked); `GET /api/v1/health` returns 200 when Postgres reachable, 503 otherwise. `flask`
+  added. Verified live with curl (200 up / 503 down / 404 problem+json).
+- **Next: T0.6 — CI pipeline** (GitHub Actions: uv sync → ruff → mypy → pytest w/ Postgres
+  service). Closes the Phase 0 gate.
