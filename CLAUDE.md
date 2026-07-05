@@ -121,7 +121,7 @@ uv run python -m harness.server      # start the adversarial mock server
 
 ## Current status
 
-**Phase 0 in progress.** The app is built **nested in this repo** (not a sibling
+**Phase 0 complete; starting Phase 1.** The app is built **nested in this repo** (not a sibling
 `../acquire-intel-app`) — one coherent codebase, per the vision. App scaffold lives at the
 repo root: `pyproject.toml` (uv), `src/acquire_intel/` with the eight concern-modules,
 `tests/`. Python 3.12 pinned via `.python-version`.
@@ -145,5 +145,10 @@ repo root: `pyproject.toml` (uv), `src/acquire_intel/` with the eight concern-mo
   config); RFC 9457 `application/problem+json` handlers (app/HTTP/uncaught, internals never
   leaked); `GET /api/v1/health` returns 200 when Postgres reachable, 503 otherwise. `flask`
   added. Verified live with curl (200 up / 503 down / 404 problem+json).
-- **Next: T0.6 — CI pipeline** (GitHub Actions: uv sync → ruff → mypy → pytest w/ Postgres
-  service). Closes the Phase 0 gate.
+- **T0.6 — CI pipeline ✅** — `.github/workflows/ci.yml`: on PR/main push, `uv sync --locked`
+  → ruff check → ruff format --check → mypy → alembic upgrade → pytest, with a Postgres 16
+  service container. Verified locally against the full command sequence (19 passed).
+
+**Phase 0 gate: DONE.** `docker compose up` + `uv run` boot; `/health` reflects DB; strict
+ruff/mypy/pytest all green; CI wired. **Next: Phase 1 (M1) — first vertical slice: REST**,
+starting at **T1.1 — SourceExtractor contract + RawProduct** (ADR-0003, ADR-0008).

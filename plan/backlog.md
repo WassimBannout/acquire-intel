@@ -43,7 +43,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 - **Acceptance:** `/health` 200 when DB up, 503 when down; a thrown error → problem+json.
 - **Verify:** curl both states. (ADR-0007, docs/07)
 
-### T0.6 — CI pipeline
+### [x] T0.6 — CI pipeline
 - **Goal:** GitHub Actions: uv sync → ruff → mypy → pytest, with a Postgres service.
 - **Acceptance:** green on trivial PR; red on an intentional type error.
 - **Verify:** open a PR both ways. (docs/06 §6)

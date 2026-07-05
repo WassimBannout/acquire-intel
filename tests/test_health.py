@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 
 import pytest
@@ -16,7 +17,9 @@ if TYPE_CHECKING:
     from flask import Flask
 
 BASE = "/api/v1"
-COMPOSE_DB = "postgresql+psycopg://acquire:acquire@localhost:5544/acquire"
+# The live DB is whatever the environment configures (compose 5544 locally, the
+# service container in CI). The 200 path is skipped only if no DB is configured.
+LIVE_DB = os.environ.get("DATABASE_URL")
 DEAD_DB = "postgresql+psycopg://u:p@localhost:5999/none"
 
 
@@ -38,12 +41,13 @@ def _app_with_db(monkeypatch: pytest.MonkeyPatch, url: str) -> Flask:
 
 
 def test_health_ok_when_db_reachable(env: None, monkeypatch: pytest.MonkeyPatch) -> None:
-    app = _app_with_db(monkeypatch, COMPOSE_DB)
-    # Skip if the compose DB isn't up (keeps unit-only runs green).
+    if not LIVE_DB:
+        pytest.skip("no DATABASE_URL configured")
+    app = _app_with_db(monkeypatch, LIVE_DB)
     with app.test_client() as client:
         resp = client.get(f"{BASE}/health")
         if resp.status_code == 503:
-            pytest.skip("compose Postgres not reachable")
+            pytest.skip("configured Postgres not reachable")
         assert resp.status_code == 200
         assert resp.get_json()["status"] == "ok"
 
