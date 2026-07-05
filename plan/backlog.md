@@ -25,7 +25,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 - **Acceptance:** missing required var → clear startup error; valid `.env` → loads.
 - **Verify:** run both cases. (ADR-0008)
 
-### T0.3 — Postgres + Docker + storage baseline
+### [x] T0.3 — Postgres + Docker + storage baseline
 - **Goal:** `docker-compose.yml` (Postgres); SQLAlchemy 2.0 engine/session; Alembic baseline
   migration for `sources/products/price_observations/crawl_runs/ban_events`.
 - **Acceptance:** `docker compose up -d` + migration creates tables; a smoke repository test

@@ -11,7 +11,10 @@ authors = [{ name = "Wassim Bannout" }]
 # Load-bearing deps (Scrapy, Playwright, SQLAlchemy, Flask) arrive with their
 # tasks; each is ratified by an ADR (see docs/05 §"Dependency discipline").
 dependencies = [
-    "pydantic-settings>=2.4", # T0.2: typed env boundary (ADR-0008); pulls pydantic v2
+    "pydantic-settings>=2.4",   # T0.2: typed env boundary (ADR-0008); pulls pydantic v2
+    "sqlalchemy>=2.0",          # T0.3: typed ORM (ADR-0006)
+    "alembic>=1.13",            # T0.3: schema migrations
+    "psycopg[binary]>=3.1",     # T0.3: PostgreSQL driver (matches +psycopg URL)
 ]
 
 [project.scripts]
@@ -58,6 +61,13 @@ select = [
 [tool.ruff.lint.isort]
 known-first-party = ["acquire_intel"]
 
+[tool.ruff.lint.per-file-ignores]
+# SQLAlchemy resolves Mapped[...] annotations at runtime (PEP 563 + declarative),
+# so datetime/Decimal/Any must stay importable at runtime — not TYPE_CHECKING-only.
+"src/acquire_intel/storage/models.py" = ["TC001", "TC002", "TC003"]
+# Alembic-generated migrations: leave their import layout as emitted.
+"src/acquire_intel/storage/migrations/versions/*" = ["I001", "TC001", "TC002", "TC003"]
+
 [tool.ruff.format]
 docstring-code-format = true
 
@@ -78,3 +88,6 @@ files = ["src"]
 minversion = "8.0"
 testpaths = ["tests"]
 addopts = "-ra"
+markers = [
+    "integration: requires a live Postgres (docker compose up); skipped if unreachable",
+]
