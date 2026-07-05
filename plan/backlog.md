@@ -11,7 +11,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 
 ## Phase 0 — Foundation (M0)
 
-### T0.1 — Scaffold uv project
+### [x] T0.1 — Scaffold uv project
 - **Goal:** uv `pyproject.toml`, `src/acquire_intel/` package with concern-modules
   (`config, acquisition, resilience, pipeline, storage, analytics, api, monitoring`), ruff +
   mypy config, `acquire-intel` CLI entrypoint stub.
@@ -19,31 +19,31 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
   stubs; `uv run acquire-intel --help` prints.
 - **Verify:** run all three. (ADR-0001)
 
-### T0.2 — Config & env boundary
+### [x] T0.2 — Config & env boundary
 - **Goal:** `config/` using pydantic-settings; parse env, fail fast on missing required;
   `.env.example` with all keys (docs/05). No `os.environ` elsewhere.
 - **Acceptance:** missing required var → clear startup error; valid `.env` → loads.
 - **Verify:** run both cases. (ADR-0008)
 
-### T0.3 — Postgres + Docker + storage baseline
+### [x] T0.3 — Postgres + Docker + storage baseline
 - **Goal:** `docker-compose.yml` (Postgres); SQLAlchemy 2.0 engine/session; Alembic baseline
   migration for `sources/products/price_observations/crawl_runs/ban_events`.
 - **Acceptance:** `docker compose up -d` + migration creates tables; a smoke repository test
   writes/reads a row.
 - **Verify:** integration test against the compose Postgres. (ADR-0006, docs/03)
 
-### T0.4 — Scrapy skeleton + CLI
+### [x] T0.4 — Scrapy skeleton + CLI
 - **Goal:** Scrapy project embedded in the package; a no-op spider; `acquire-intel crawl
   <source>` wiring (registry stub); structured logging (structlog) with `run_id`.
 - **Acceptance:** `uv run acquire-intel crawl demo` runs the no-op spider and logs a run.
 - **Verify:** run it; show structured log. (ADR-0002)
 
-### T0.5 — Flask skeleton + health
+### [x] T0.5 — Flask skeleton + health
 - **Goal:** Flask app, problem+json error handler, `GET /health` (200/503 by DB reachability).
 - **Acceptance:** `/health` 200 when DB up, 503 when down; a thrown error → problem+json.
 - **Verify:** curl both states. (ADR-0007, docs/07)
 
-### T0.6 — CI pipeline
+### [x] T0.6 — CI pipeline
 - **Goal:** GitHub Actions: uv sync → ruff → mypy → pytest, with a Postgres service.
 - **Acceptance:** green on trivial PR; red on an intentional type error.
 - **Verify:** open a PR both ways. (docs/06 §6)
