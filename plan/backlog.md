@@ -32,7 +32,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
   writes/reads a row.
 - **Verify:** integration test against the compose Postgres. (ADR-0006, docs/03)
 
-### T0.4 — Scrapy skeleton + CLI
+### [x] T0.4 — Scrapy skeleton + CLI
 - **Goal:** Scrapy project embedded in the package; a no-op spider; `acquire-intel crawl
   <source>` wiring (registry stub); structured logging (structlog) with `run_id`.
 - **Acceptance:** `uv run acquire-intel crawl demo` runs the no-op spider and logs a run.

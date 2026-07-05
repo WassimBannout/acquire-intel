@@ -24,11 +24,13 @@ def test_version_flag(capsys: pytest.CaptureFixture[str]) -> None:
     assert __version__ in capsys.readouterr().out
 
 
-def test_crawl_stub_is_not_yet_implemented(capsys: pytest.CaptureFixture[str]) -> None:
+def test_crawl_requires_a_source_argument(capsys: pytest.CaptureFixture[str]) -> None:
+    # Parser-level check (no reactor): `crawl` without a source is a usage error.
+    # End-to-end crawl behaviour is covered in test_crawl_cli.py.
     with pytest.raises(SystemExit) as exc:
-        main(["crawl", "demo"])
+        build_parser().parse_args(["crawl"])
     assert exc.value.code == 2
-    assert "not yet implemented" in capsys.readouterr().err
+    assert "source" in capsys.readouterr().err
 
 
 def test_parser_rejects_unknown_command(capsys: pytest.CaptureFixture[str]) -> None:

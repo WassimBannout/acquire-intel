@@ -52,13 +52,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.command == "crawl":
-        # Wiring to the source registry + Scrapy arrives in T0.4.
-        parser.exit(
-            status=2,
-            message=(
-                f"crawl: not yet implemented (source={args.source!r}); scheduled for task T0.4.\n"
-            ),
-        )
+        # Import lazily so `--help`/`--version` don't pay the Scrapy import cost.
+        from acquire_intel.acquisition import run_crawl
+
+        return run_crawl(args.source)
 
     # argparse rejects unknown commands before we reach here.
     parser.print_help()
