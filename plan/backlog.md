@@ -11,7 +11,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 
 ## Phase 0 — Foundation (M0)
 
-### T0.1 — Scaffold uv project
+### [x] T0.1 — Scaffold uv project
 - **Goal:** uv `pyproject.toml`, `src/acquire_intel/` package with concern-modules
   (`config, acquisition, resilience, pipeline, storage, analytics, api, monitoring`), ruff +
   mypy config, `acquire-intel` CLI entrypoint stub.

@@ -120,5 +120,11 @@ uv run python -m harness.server      # start the adversarial mock server
 
 ## Current status
 
-Greenfield. No application code exists yet — only this kit. Start at **Phase 0** in
-`plan/execution-playbook.md`. Update this line as milestones land.
+**Phase 0 in progress.** The app is built **nested in this repo** (not a sibling
+`../acquire-intel-app`) — one coherent codebase, per the vision. App scaffold lives at the
+repo root: `pyproject.toml` (uv), `src/acquire_intel/` with the eight concern-modules,
+`tests/`. Python 3.12 pinned via `.python-version`.
+
+- **T0.1 — Scaffold uv project ✅** (`uv sync`, ruff, mypy strict, `acquire-intel` CLI stub,
+  CLI smoke tests all green).
+- **Next: T0.2 — Config & env boundary** (pydantic-settings, `.env.example`).
