@@ -127,4 +127,8 @@ repo root: `pyproject.toml` (uv), `src/acquire_intel/` with the eight concern-mo
 
 - **T0.1 — Scaffold uv project ✅** (`uv sync`, ruff, mypy strict, `acquire-intel` CLI stub,
   CLI smoke tests all green).
-- **Next: T0.2 — Config & env boundary** (pydantic-settings, `.env.example`).
+- **T0.2 — Config & env boundary ✅** — `config/` is the single env boundary
+  (`get_settings()`, pydantic-settings, `lru_cache`, fail-fast `ConfigError`); `.env.example`
+  ships every key; no `os.environ` outside `config/`. `pydantic-settings` is the first runtime
+  dep (ADR-0008).
+- **Next: T0.3 — Postgres + Docker + storage baseline** (SQLAlchemy 2.0, Alembic, compose).

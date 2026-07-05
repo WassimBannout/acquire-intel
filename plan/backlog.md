@@ -19,7 +19,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
   stubs; `uv run acquire-intel --help` prints.
 - **Verify:** run all three. (ADR-0001)
 
-### T0.2 — Config & env boundary
+### [x] T0.2 — Config & env boundary
 - **Goal:** `config/` using pydantic-settings; parse env, fail fast on missing required;
   `.env.example` with all keys (docs/05). No `os.environ` elsewhere.
 - **Acceptance:** missing required var → clear startup error; valid `.env` → loads.

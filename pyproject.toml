@@ -8,10 +8,11 @@ license = { text = "MIT" }
 authors = [{ name = "Wassim Bannout" }]
 
 # Runtime dependencies are added per-task as vertical slices land (spec-first).
-# T0.1 scaffolds a runnable, dependency-light skeleton; load-bearing deps
-# (Scrapy, Playwright, SQLAlchemy, Flask, pydantic) arrive with their tasks
-# and each require an ADR (see docs/05 §"Dependency discipline").
-dependencies = []
+# Load-bearing deps (Scrapy, Playwright, SQLAlchemy, Flask) arrive with their
+# tasks; each is ratified by an ADR (see docs/05 §"Dependency discipline").
+dependencies = [
+    "pydantic-settings>=2.4", # T0.2: typed env boundary (ADR-0008); pulls pydantic v2
+]
 
 [project.scripts]
 acquire-intel = "acquire_intel.cli:main"
@@ -63,6 +64,7 @@ docstring-code-format = true
 # --- Mypy: strict typing (ADR-0001: non-negotiable) --------------------------
 [tool.mypy]
 python_version = "3.12"
+plugins = ["pydantic.mypy"]
 strict = true
 warn_unreachable = true
 warn_redundant_casts = true
