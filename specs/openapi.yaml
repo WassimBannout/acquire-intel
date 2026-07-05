@@ -1,0 +1,268 @@
+openapi: 3.1.0
+info:
+  title: AcquireIntel API
+  version: 1.0.0
+  description: >
+    Read/serve surface for the AcquireIntel data-acquisition platform (Flask). Serves
+    products, per-product price history, deals (price drops), and collection health. Every
+    data response carries freshness (dataAsOf per response; capturedAt + sourceId per
+    observation). Schemas mirror the pydantic models (see docs/03-data-model.md,
+    specs/data-contracts/). This spec is the contract; the Flask implementation conforms.
+servers:
+  - url: /api/v1
+    description: Versioned base path
+
+paths:
+  /products:
+    get:
+      operationId: listProducts
+      summary: List collected products (latest state)
+      parameters:
+        - name: source
+          in: query
+          schema: { type: string }
+          description: Filter by source id
+        - name: q
+          in: query
+          schema: { type: string }
+          description: Title search
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 24 }
+      responses:
+        "200":
+          description: Products with freshness
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductsResponse" }
+
+  /products/{id}/price-history:
+    get:
+      operationId: getPriceHistory
+      summary: Append-only price observations for one product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: Canonical product id (source_id:external_id)
+        - name: window
+          in: query
+          schema: { type: string, enum: ["30d", "90d", "180d", "365d", "all"], default: "90d" }
+      responses:
+        "200":
+          description: Time-series of price observations
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PriceHistoryResponse" }
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /deals:
+    get:
+      operationId: getDeals
+      summary: Products with the largest recent price drops (vs. own history)
+      parameters:
+        - name: source
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+      responses:
+        "200":
+          description: Deals ranked by drop magnitude
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DealsResponse" }
+
+  /admin/crawl:
+    post:
+      operationId: triggerCrawl
+      summary: Trigger an on-demand crawl (admin only)
+      security:
+        - adminToken: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                source:
+                  type: string
+                  description: Source id, or omit for all sources
+      responses:
+        "202":
+          description: Crawl accepted/started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accepted: { type: boolean }
+                  runs:
+                    type: array
+                    items: { $ref: "#/components/schemas/CrawlRun" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /health:
+    get:
+      operationId: getHealth
+      summary: Liveness (process + DB reachable)
+      responses:
+        "200": { description: OK }
+        "503": { description: Unhealthy }
+
+  /health/sources:
+    get:
+      operationId: getSourceHealth
+      summary: Per-source freshness + collection/ban health
+      responses:
+        "200":
+          description: Health per source and overall
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SourceHealthResponse" }
+
+components:
+  securitySchemes:
+    adminToken:
+      type: http
+      scheme: bearer
+      description: Bearer ADMIN_TOKEN
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Unauthorized:
+      description: Missing/invalid admin token
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+
+  schemas:
+    Problem:
+      type: object
+      description: RFC 9457 problem+json error
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+      required: [title, status]
+
+    Freshness:
+      type: object
+      properties:
+        dataAsOf: { type: string, format: date-time }
+        stale: { type: boolean }
+      required: [dataAsOf, stale]
+
+    Money:
+      type: object
+      properties:
+        amount: { type: string, description: "Decimal serialized as string to avoid float error" }
+        currency: { type: string, description: "ISO-4217" }
+      required: [amount, currency]
+
+    Product:
+      type: object
+      properties:
+        id: { type: string, description: "source_id:external_id" }
+        sourceId: { type: string }
+        title: { type: string }
+        brand: { type: string, nullable: true }
+        url: { type: string }
+        imageUrl: { type: string, nullable: true }
+        latestPrice: { $ref: "#/components/schemas/Money", nullable: true }
+        inStock: { type: boolean, nullable: true }
+        lastSeenAt: { type: string, format: date-time }
+      required: [id, sourceId, title, url, lastSeenAt]
+
+    ProductsResponse:
+      allOf:
+        - $ref: "#/components/schemas/Freshness"
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: "#/components/schemas/Product" }
+          required: [data]
+
+    PriceObservation:
+      type: object
+      properties:
+        capturedAt: { type: string, format: date-time }
+        sourceId: { type: string }
+        price: { $ref: "#/components/schemas/Money" }
+        inStock: { type: boolean, nullable: true }
+      required: [capturedAt, sourceId, price]
+
+    PriceHistoryResponse:
+      allOf:
+        - $ref: "#/components/schemas/Freshness"
+        - type: object
+          properties:
+            productId: { type: string }
+            observations:
+              type: array
+              items: { $ref: "#/components/schemas/PriceObservation" }
+          required: [productId, observations]
+
+    Deal:
+      type: object
+      properties:
+        product: { $ref: "#/components/schemas/Product" }
+        previousPrice: { $ref: "#/components/schemas/Money" }
+        currentPrice: { $ref: "#/components/schemas/Money" }
+        dropPct: { type: number }
+        since: { type: string, format: date-time }
+      required: [product, previousPrice, currentPrice, dropPct]
+
+    DealsResponse:
+      allOf:
+        - $ref: "#/components/schemas/Freshness"
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: "#/components/schemas/Deal" }
+          required: [data]
+
+    CrawlRun:
+      type: object
+      properties:
+        id: { type: string }
+        source: { type: string }
+        status: { type: string, enum: [running, success, partial, failed] }
+        itemsOk: { type: integer, nullable: true }
+        itemsRejected: { type: integer, nullable: true }
+        banEvents: { type: integer, nullable: true }
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: string, format: date-time, nullable: true }
+      required: [id, source, status, startedAt]
+
+    SourceHealth:
+      type: object
+      properties:
+        source: { type: string }
+        status: { type: string, enum: [healthy, degraded, stale, failing] }
+        lastSuccessAt: { type: string, format: date-time, nullable: true }
+        lastRunStatus: { type: string, enum: [running, success, partial, failed], nullable: true }
+        banRate: { type: number, nullable: true, description: "recent ban events / requests" }
+        staleAfterSeconds: { type: integer }
+      required: [source, status, staleAfterSeconds]
+
+    SourceHealthResponse:
+      type: object
+      properties:
+        overall: { type: string, enum: [healthy, degraded, stale, failing] }
+        sources:
+          type: array
+          items: { $ref: "#/components/schemas/SourceHealth" }
+      required: [overall, sources]

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acquire-intel.dev/contracts/raw-product.schema.json",
+  "title": "RawProduct",
+  "description": "Source-native extractor output before normalization. Emitted by a SourceExtractor; normalized by the pipeline into Product + PriceObservation.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "external_id": { "type": "string", "description": "Source's own id/sku/handle" },
+    "title": { "type": "string", "minLength": 1 },
+    "url": { "type": "string" },
+    "raw_price": {
+      "description": "Source-native price; normalized to Decimal later",
+      "type": ["string", "number"]
+    },
+    "currency": { "type": ["string", "null"], "description": "ISO-4217 if stated by source" },
+    "in_stock": { "type": ["boolean", "null"] },
+    "brand": { "type": ["string", "null"] },
+    "image_url": { "type": ["string", "null"] },
+    "extra": { "type": "object", "additionalProperties": true }
+  },
+  "required": ["external_id", "title", "url", "raw_price"]
+}

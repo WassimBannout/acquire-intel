@@ -1,0 +1,50 @@
+{
+  "$comment": "Project-level Claude Code settings for AcquireIntel. Read/build/test freely; network installs, live crawling, and destructive ops are gated. Live crawls in tests are discouraged — use the adversarial harness.",
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Bash(uv run *)",
+      "Bash(uv sync)",
+      "Bash(uv add *)",
+      "Bash(uv lock)",
+      "Bash(uv pip *)",
+      "Bash(pytest*)",
+      "Bash(ruff *)",
+      "Bash(mypy *)",
+      "Bash(python -m *)",
+      "Bash(docker compose up*)",
+      "Bash(docker compose down)",
+      "Bash(docker compose ps)",
+      "Bash(docker compose logs*)",
+      "Bash(scrapy *)",
+      "Bash(git status)",
+      "Bash(git diff*)",
+      "Bash(git add*)",
+      "Bash(git log*)",
+      "Bash(git branch*)",
+      "Bash(ls*)",
+      "Bash(cat *)",
+      "Bash(rg *)",
+      "Bash(mkdir *)"
+    ],
+    "ask": [
+      "Bash(git push*)",
+      "Bash(git commit*)",
+      "Bash(uv publish*)",
+      "Bash(curl *)",
+      "Bash(wget *)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./**/.env)",
+      "Bash(rm -rf *)",
+      "Bash(curl * | sh)",
+      "Bash(curl * | bash)"
+    ]
+  },
+  "env": {
+    "PYTHONUNBUFFERED": "1"
+  }
+}

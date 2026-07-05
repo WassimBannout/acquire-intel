@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acquire-intel.dev/contracts/crawl-run.schema.json",
+  "title": "CrawlRun",
+  "description": "One collection attempt for a source: audit trail + health, including ban events. Powers /health/sources and freshness.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string" },
+    "source_id": { "type": "string" },
+    "status": { "type": "string", "enum": ["running", "success", "partial", "failed"] },
+    "items_ok": { "type": "integer", "minimum": 0 },
+    "items_rejected": { "type": "integer", "minimum": 0 },
+    "ban_events": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/BanEvent" }
+    },
+    "timings": { "type": "object", "additionalProperties": true },
+    "started_at": { "type": "string", "format": "date-time" },
+    "finished_at": { "type": ["string", "null"], "format": "date-time" }
+  },
+  "required": ["id", "source_id", "status", "started_at"],
+  "$defs": {
+    "BanEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string", "enum": ["rate_limited", "blocked", "captcha", "empty"] },
+        "http_status": { "type": ["integer", "null"] },
+        "action_taken": { "type": "string", "enum": ["backoff", "rotate_identity", "rotate_proxy", "give_up"] },
+        "occurred_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["kind", "action_taken", "occurred_at"]
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acquire-intel.dev/contracts/price-observation.schema.json",
+  "title": "PriceObservation",
+  "description": "One immutable price capture for a product from a source in a crawl run. Append-only time-series (time axis: captured_at).",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "product_id": { "type": "string", "description": "Canonical product id" },
+    "source_id": { "type": "string" },
+    "run_id": { "type": "string", "description": "Owning crawl run" },
+    "amount": { "type": "string", "description": "Decimal serialized as string; never a float" },
+    "currency": { "type": "string", "description": "ISO-4217" },
+    "in_stock": { "type": ["boolean", "null"] },
+    "captured_at": { "type": "string", "format": "date-time", "description": "UTC capture time (time-series axis)" }
+  },
+  "required": ["product_id", "source_id", "run_id", "amount", "currency", "captured_at"]
+}
