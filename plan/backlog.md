@@ -127,7 +127,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 - **Acceptance:** each scenario is selectable and deterministic; documented.
 - **Verify:** harness self-tests. (FR-11, ADR-0009)
 
-### T3.2 — Ban/anti-bot classifier
+### [x] T3.2 — Ban/anti-bot classifier
 - **Goal:** classify responses (ok/rate_limited/blocked/captcha/empty) via status + body
   markers + size + redirects; emit `BanEvent`; blocked never passes downstream.
 - **Acceptance:** deterministic classification on fixtures + harness; blocked response never

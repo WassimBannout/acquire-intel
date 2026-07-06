@@ -122,8 +122,8 @@ uv run python -m harness.server      # start the adversarial mock server
 ## Current status
 
 **Phase 0, Phase 1 (M1) & Phase 2 (M2) complete (all merged to `main`); Phase 3 (M3) — the
-resilience centerpiece — in progress: the adversarial mock harness lands (T3.1 ✅); ban classifier
-(T3.2) next.** All three acquisition kinds (REST/HTML/GraphQL) feed one pipeline, and the
+resilience centerpiece — in progress: the adversarial mock harness (T3.1 ✅) and ban classifier
+(T3.2 ✅) land; throttle/backoff/circuit-breaker (T3.3) next.** All three acquisition kinds (REST/HTML/GraphQL) feed one pipeline, and the
 first REST vertical slice runs end to end (crawl → pipeline → Postgres → API with freshness). The
 app is built
 **nested in this repo** (not a sibling `../acquire-intel-app`) — one coherent codebase, per the
@@ -324,7 +324,24 @@ products from fixtures through one pipeline + storage; strict ruff/mypy/pytest g
   skipped** with the DB up. No new ADR (harness ratified by ADR-0009; scenario conventions
   documented in-module + README).
 
-**Next: T3.2 — ban/anti-bot classifier**: label each response `ok|rate_limited|blocked|captcha|
-empty` (status + body markers + size + redirect), emit a `BanEvent`, and ensure a non-ok response
-**never** reaches an extractor — wired as a Scrapy downloader middleware, proven against the
-harness.
+- **T3.2 — Ban/anti-bot classifier ✅** — the "never cache garbage" gate (ADR-0005, docs/04 §2.5).
+  `resilience/classifier.py` is a **pure** `classify(status, body) -> Classification`
+  (`ok|rate_limited|blocked|captcha|empty`): CAPTCHA/JS-challenge body markers win over status (a
+  challenge served as 200 *or* 403 → `captcha`), `429` → `rate_limited`, other non-2xx → `blocked`,
+  a 2xx with an **empty** body → `empty` (a silent soft-ban — distinct from a legitimate empty JSON
+  array, which has a non-empty body → `ok`). `resilience/middleware.py` (`BanDetectionMiddleware`,
+  wired into `DOWNLOADER_MIDDLEWARES` @585 — below HttpCompression/Redirect so it sees the final
+  decompressed body) classifies every response: `ok` passes through; a ban is recorded (Scrapy
+  stats `acquire/ban_events` + `acquire/ban/{kind}`, a structured log, and a `BanEvent` appended to
+  the spider's `ban_events` sink for the T3.6 ledger) and **dropped via `IgnoreRequest`** so the
+  extractor never sees it. Robots.txt fetches (`meta.dont_obey_robotstxt`) are never gated.
+  Detection + gating only; the recorded `action_taken` (backoff/rotate) is policy that T3.3/T3.4
+  execute. Proven: 19 classifier tests incl. all **7 harness scenarios** classified as expected +
+  6 middleware gating tests; **verified in the real Scrapy engine** against the harness (captcha →
+  0 items scraped, 1 ban recorded; happy → 3 items, 0 bans). Full suite **183 passed / 0 skipped**;
+  E2E happy-path crawl unaffected. No new ADR (classifier-as-middleware ratified by ADR-0005).
+
+**Next: T3.3 — throttle, backoff, circuit-breaker**: AutoThrottle + per-domain caps; exponential
+backoff+jitter honouring `Retry-After`; bounded retries; a per-domain circuit breaker that
+cools down after repeated blocks — proven against the harness `rate_limited`/repeated-block
+scenarios.

@@ -35,6 +35,12 @@ def build_scrapy_settings() -> Settings:
             },
             "PLAYWRIGHT_BROWSER_TYPE": "chromium",
             "PLAYWRIGHT_LAUNCH_OPTIONS": {"headless": True},
+            # Ban/anti-bot classifier (T3.2, docs/04 §2.5): gate every response before it can
+            # reach a spider. Placed below HttpCompression (590) / Redirect (600) so it sees the
+            # final, decompressed body; a classified ban is recorded and dropped, never parsed.
+            "DOWNLOADER_MIDDLEWARES": {
+                "acquire_intel.resilience.middleware.BanDetectionMiddleware": 585,
+            },
             # Validate → normalize → dedup, then persist every surviving item (T1.4 → T1.7).
             "ITEM_PIPELINES": {
                 "acquire_intel.pipeline.item_pipeline.NormalizePipeline": 300,
