@@ -56,11 +56,15 @@ class DemoRestExtractor(scrapy.Spider):
         self,
         base_url: str = DEMO_REST_BASE_URL,
         page_size: int = _DEFAULT_PAGE_SIZE,
+        default_currency: str = "USD",
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self.base_url = base_url.rstrip("/")
         self.page_size = page_size
+        # products.json states no per-item currency; the shop-level currency (source config)
+        # is applied during normalization (ADR-0010). Real sources supply this via config.
+        self.default_currency = default_currency
 
     # --- request construction ------------------------------------------------
 

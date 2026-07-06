@@ -187,6 +187,18 @@ ruff/mypy/pytest all green; CI wired.
   Postgres-skipped). No new ADR (Spider-subclass realization implied by ADR-0002/0003 + the
   registry precedent; demo shape is a fixture detail).
 
-**Next: T1.4 — Pipeline: validate → normalize → dedup** (Scrapy item pipeline: `RawProduct` →
-`Product` + `PriceObservation` with Decimal money + canonical id + UTC `captured_at`; dedup
-within a run; invalid items rejected + counted; docs/03 §3, ADR-0008).
+- **T1.4 — Pipeline: validate → normalize → dedup ✅** — `pipeline/normalize.py` (pure,
+  Scrapy-independent) maps `RawProduct` → canonical `Product` + `PriceObservation`
+  (`NormalizedItem` bundle): canonical id `{source}:{external_id}`, `raw_price` → non-negative
+  finite `Decimal`, currency resolved item→source-`default_currency`→reject (never guessed),
+  whitespace-collapsed titles, UTC capture stamp. `pipeline/item_pipeline.py`
+  (`NormalizePipeline`, wired into `ITEM_PIPELINES`) is the Scrapy adapter: rejects non-
+  `RawProduct`/unmappable items (`DropItem`, counted), dedups within a run by canonical id
+  (keep-first), tracks `items_ok`/`items_rejected`/`items_duplicate`. `demo_rest` gained a
+  `default_currency` ("USD"). **New: ADR-0010** (normalization + in-run dedup policy). 31 new
+  tests (pure fns + pipeline adapter + demo_rest fixture round-trip); full suite 101 passed / 3
+  Postgres-skipped.
+
+**Next: T1.5 — Persistence + crawl-run ledger** (repositories: upsert `products`, append
+immutable `price_observations`; open/close `crawl_runs` with status + items_ok/rejected;
+integration test against Postgres; ADR-0006, docs/03 §2).

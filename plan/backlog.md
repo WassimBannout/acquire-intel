@@ -70,7 +70,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 - **Acceptance:** valid fixture → correct RawProducts; malformed → yields nothing (no junk).
 - **Verify:** fixture tests. (FR-2, ADR-0004)
 
-### T1.4 — Pipeline: validate → normalize → dedup
+### [x] T1.4 — Pipeline: validate → normalize → dedup
 - **Goal:** Scrapy item pipeline: pydantic-validate RawProduct → normalize to Product +
   PriceObservation (Decimal money, canonical id, UTC captured_at) → dedup within a run.
 - **Acceptance:** normalization correct on fixtures; invalid item rejected + counted; dups
