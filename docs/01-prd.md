@@ -130,6 +130,30 @@ Priority: P0 launch-blocking, P1 important, P2 nice-to-have. IDs map to `plan/ba
 *Snapshot as of 2026-07-06. Kept in sync with `plan/backlog.md` and the "Current status"
 section of `CLAUDE.md`; those are the source of truth for task-level state.*
 
+### Progress at a glance
+
+**How far along: 13 / 28 backlog tasks complete (~46%); 2 of 5 milestones built and gated.**
+
+```
+Done  ██████████████████░░░░░░░░░░░░░░░░░░░░░░  46%   (M0 ✅  M1 ✅  M2 ⬜  M3 ⬜  M4 ⬜)
+```
+
+| Phase | Tasks | Status | Delivers |
+|-------|:-----:|--------|----------|
+| **M0 — Foundation** | 6 / 6 | ✅ Gated | uv/Docker/Postgres, config boundary, Scrapy + Flask skeletons, CI, `/health` |
+| **M1 — First REST slice** | 7 / 7 | ✅ Gated | one command: crawl → validate → normalize → dedup → persist → serve, with freshness |
+| **M2 — More techniques** | 0 / 3 | ⬜ Next | HTML (Playwright) + GraphQL extractors on the same `SourceExtractor` contract |
+| **M3 — Resilience + harness** | 0 / 6 | ⬜ Not started | proxy/identity rotation, throttle/backoff, ban detection, adversarial harness — **the centerpiece** |
+| **M4 — Intelligence + hardening** | 0 / 6 | ⬜ Not started | deals/drift detection, dashboard, scheduler + admin crawl, metrics, demo/CI polish |
+
+The foundation and the first end-to-end REST slice are done and proven; a single command crawls a
+source through the full pipeline and the API serves it with freshness. What remains is the two
+other acquisition techniques (M2), the **anti-bot resilience layer (M3) — the largest and
+highest-value phase**, and the intelligence/hardening layer (M4). By raw task count that is ~46%;
+**effort-weighted it is nearer the midpoint**, since M3 alone is the single biggest chunk of the
+remaining work and the core competency this project exists to demonstrate. Per-milestone,
+per-task, and per-FR detail follows.
+
 **Overall: M0 (Foundation) and M1 (first REST slice) complete and gated — the first vertical
 slice runs end to end. Next: M2 (more techniques).** The platform boots, migrates, and answers
 `/health`; the canonical data contracts exist and are parity-tested; and a single command,
