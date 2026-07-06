@@ -51,6 +51,15 @@ class SourceRepository:
         """Return all registered source ids (ordered) — handy for the crawl registry."""
         return list(self._session.scalars(select(Source.id).order_by(Source.id)))
 
+    def stale_after_for(self, source_ids: set[str]) -> dict[str, int]:
+        """Return ``{source_id: stale_after_seconds}`` for the given sources (freshness)."""
+        if not source_ids:
+            return {}
+        rows = self._session.execute(
+            select(Source.id, Source.stale_after_seconds).where(Source.id.in_(source_ids))
+        )
+        return {row.id: row.stale_after_seconds for row in rows}
+
 
 class ProductRepository:
     """Upsert access to the ``products`` projection (rebuildable, one row per canonical id)."""
@@ -93,6 +102,22 @@ class ProductRepository:
         """Return the projection row by canonical id, or ``None``."""
         return self._session.get(Product, product_id)
 
+    def list(
+        self, *, source: str | None = None, q: str | None = None, limit: int = 24
+    ) -> list[Product]:
+        """Return products (latest-seen first) for the read surface.
+
+        ``source`` filters by source id; ``q`` is a case-insensitive title substring search;
+        ``limit`` caps the result (the caller is responsible for clamping to the spec bounds).
+        """
+        stmt = select(Product)
+        if source is not None:
+            stmt = stmt.where(Product.source_id == source)
+        if q is not None:
+            stmt = stmt.where(Product.title.ilike(f"%{q}%"))
+        stmt = stmt.order_by(Product.last_seen_at.desc(), Product.id).limit(limit)
+        return list(self._session.scalars(stmt))
+
     def count(self) -> int:
         """Total number of product rows (test/health helper)."""
         return self._session.scalar(select(func.count()).select_from(Product)) or 0
@@ -119,15 +144,30 @@ class PriceObservationRepository:
         self._session.flush()
         return row
 
-    def list_for(self, product_id: str) -> list[PriceObservation]:
-        """Return a product's observations, oldest-first (the price-history axis)."""
-        return list(
-            self._session.scalars(
-                select(PriceObservation)
-                .where(PriceObservation.product_id == product_id)
-                .order_by(PriceObservation.captured_at)
-            )
+    def list_for(self, product_id: str, *, since: datetime | None = None) -> list[PriceObservation]:
+        """Return a product's observations, oldest-first (the price-history axis).
+
+        ``since`` (inclusive) trims the series to a time window; ``None`` returns all.
+        """
+        stmt = select(PriceObservation).where(PriceObservation.product_id == product_id)
+        if since is not None:
+            stmt = stmt.where(PriceObservation.captured_at >= since)
+        return list(self._session.scalars(stmt.order_by(PriceObservation.captured_at)))
+
+    def latest_for_many(self, product_ids: list[str]) -> dict[str, PriceObservation]:
+        """Return the newest observation per product id (for the list projection).
+
+        Uses Postgres ``DISTINCT ON`` — one row per product, the latest by ``captured_at``.
+        """
+        if not product_ids:
+            return {}
+        rows = self._session.scalars(
+            select(PriceObservation)
+            .where(PriceObservation.product_id.in_(product_ids))
+            .order_by(PriceObservation.product_id, PriceObservation.captured_at.desc())
+            .distinct(PriceObservation.product_id)
         )
+        return {obs.product_id: obs for obs in rows}
 
     def count_for(self, product_id: str) -> int:
         """Number of observations recorded for a product."""

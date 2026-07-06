@@ -83,7 +83,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 - **Acceptance:** re-running appends observations (immutable) + upserts product; run recorded.
 - **Verify:** integration test against Postgres. (FR-10, FR-12, ADR-0006)
 
-### T1.6 — GET /products + /products/:id/price-history
+### [x] T1.6 — GET /products + /products/:id/price-history
 - **Goal:** Flask routes per `specs/openapi.yaml`, with `dataAsOf` + per-point `capturedAt` +
   `sourceId`; 404 for unknown product; validate response shape.
 - **Acceptance:** spec-conformant; freshness present; 404 path works.

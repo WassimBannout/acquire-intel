@@ -210,6 +210,22 @@ ruff/mypy/pytest all green; CI wired.
   and both runs are recorded; money round-trips as `Decimal`. Full suite **107 passed / 0
   skipped** with the DB up. No new ADR (schema/append-only/projection from ADR-0006/docs/03).
 
-**Next: T1.6 — GET /products + /products/:id/price-history** (Flask routes per
-`specs/openapi.yaml`: `dataAsOf` + per-point `capturedAt`/`sourceId`; 404 for unknown product;
-response shape validated against the pydantic models; FR-13).
+- **T1.6 — GET /products + /products/:id/price-history ✅** — two Flask read routes
+  (`api/products.py`, blueprint on the config base path) per `specs/openapi.yaml`. `GET /products`
+  (`source`/`q`/`limit` 1-100 default 24) and `GET /products/{id}/price-history` (`window` ∈
+  30d/90d/180d/365d/all, default 90d). Responses serialized through camelCase API models
+  (`api/serializers.py`, distinct from the snake_case canonical `contracts`) so `Money.amount` is
+  a **string**, every response carries freshness (`dataAsOf` + `stale`, where `stale` = data
+  older than the source's `stale_after_seconds`, docs/07), and each observation carries
+  `capturedAt` + `sourceId`. `latestPrice`/`inStock` are derived from the newest observation at
+  query time (`PriceObservationRepository.latest_for_many`, Postgres `DISTINCT ON`), never stored
+  on the projection (docs/03 §2.2). Unknown product → 404 problem+json. New read methods:
+  `ProductRepository.list`, `PriceObservationRepository.list_for(since=…)`/`latest_for_many`,
+  `SourceRepository.stale_after_for`. 9 Flask-test-client integration tests (shape/freshness/
+  latest-price/filter+search/stale/empty/window/404/400); full suite **116 passed / 0 skipped**
+  with the DB up. Verified live via curl (`/products`, `/price-history`, 404). No new ADR
+  (routes/serialization from ADR-0007 + openapi; freshness rule from docs/07).
+
+**Next: T1.7 — End-to-end REST slice** (M1 gate): wire `acquire-intel crawl demo_rest` →
+pipeline → Postgres → API serves it; prove a real/fixture-backed crawl produces observations the
+API returns with correct freshness (run the crawl; curl the API; show rows + response).
