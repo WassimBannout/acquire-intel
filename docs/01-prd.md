@@ -130,21 +130,22 @@ Priority: P0 launch-blocking, P1 important, P2 nice-to-have. IDs map to `plan/ba
 *Snapshot as of 2026-07-06. Kept in sync with `plan/backlog.md` and the "Current status"
 section of `CLAUDE.md`; those are the source of truth for task-level state.*
 
-**Overall: M0 (Foundation) complete and gated; M1 (first REST slice) in progress — contracts
-in, first extractor collecting.** The platform is scaffolded end-to-end — it boots, migrates,
-and answers `/health` — the canonical data contracts (`RawProduct` + `Product`/
-`PriceObservation`/`Money`/`CrawlRun`/`BanEvent`) exist and are parity-tested against their
-published JSON Schemas, and the first concrete source (`demo_rest`) parses paginated JSON into
-`RawProduct`s under fixture test. What remains for M1: the normalize→dedup pipeline (T1.4),
-persistence + crawl-run ledger (T1.5), the read API (T1.6), and the end-to-end wiring (T1.7),
-so no data lands in Postgres or is served over HTTP yet.
+**Overall: M0 (Foundation) complete and gated; M1 (first REST slice) in progress — collect →
+validate → normalize works in-memory; persistence next.** The platform is scaffolded end-to-end
+— it boots, migrates, and answers `/health` — the canonical data contracts (`RawProduct` +
+`Product`/`PriceObservation`/`Money`/`CrawlRun`/`BanEvent`) exist and are parity-tested, the
+first concrete source (`demo_rest`) parses paginated JSON into `RawProduct`s, and the Scrapy
+item pipeline validates → normalizes (Decimal money, canonical id, UTC capture) → dedups within
+a run, rejecting/counting anything unmappable. The chain runs in memory but **nothing is
+persisted or served yet**: what remains for M1 is persistence + the crawl-run ledger (T1.5), the
+read API (T1.6), and the end-to-end crawl→DB→API wiring (T1.7).
 
 ### Milestone progress
 
 | Milestone | State | Notes |
 |-----------|-------|-------|
 | **M0 Foundation** | ✅ Complete | Gate passed: `docker compose up` + `uv run` boot; `/health` reflects DB; strict ruff/mypy/pytest green; CI wired. |
-| **M1 First vertical slice (REST)** | 🟡 In progress | T1.1–T1.3 ✅ done (contracts + REST extractor). Next: T1.4 pipeline → T1.5 persistence → T1.6 API → T1.7 E2E gate. |
+| **M1 First vertical slice (REST)** | 🟡 In progress | T1.1–T1.4 ✅ done (contracts + REST extractor + normalize/dedup pipeline). Next: T1.5 persistence → T1.6 API → T1.7 E2E gate. |
 | **M2 More techniques (HTML/GraphQL)** | ⬜ Not started | — |
 | **M3 Resilience + harness** | ⬜ Not started | The centerpiece; unbuilt. |
 | **M4 Intelligence + hardening** | ⬜ Not started | — |
@@ -156,8 +157,8 @@ so no data lands in Postgres or is served over HTTP yet.
 | T1.1 — SourceExtractor contract + RawProduct | ✅ Done | `acquisition/extractor.py`: `RawProduct` pydantic model (`extra="forbid"`) + `runtime_checkable` `SourceExtractor` Protocol; parity-tested vs `raw-product.schema.json`. |
 | T1.2 — Canonical models + contract parity | ✅ Done | `contracts.py`: `Money`(Decimal+currency, string-serialized), `Product`, `PriceObservation`, `CrawlRun`, `BanEvent`; UTC-normalizing datetime; parity + money/UTC/enum invariant tests green. |
 | T1.3 — REST extractor | ✅ Done | `sources/demo_rest.py`: `DemoRestExtractor` (`kind="rest"`) walks a paginated Shopify-style `products.json` → `RawProduct`s; malformed/blocked page → nothing; fixtures + 12 tests green. |
-| T1.4 — Pipeline: validate → normalize → dedup | ⏳ Next | `RawProduct` → `Product` + `PriceObservation` (Decimal money, canonical id, UTC `captured_at`); in-run dedup; invalid rejected + counted. |
-| T1.5 — Persistence + crawl-run ledger | ⬜ Todo | — |
+| T1.4 — Pipeline: validate → normalize → dedup | ✅ Done | `pipeline/normalize.py` + `NormalizePipeline`: `RawProduct` → `Product` + `PriceObservation` (Decimal money, canonical id, currency fallback, UTC capture); in-run dedup keep-first; invalid rejected + counted. ADR-0010. |
+| T1.5 — Persistence + crawl-run ledger | ⏳ Next | Upsert `products`, append immutable `price_observations`; open/close `crawl_runs` (status, items_ok/rejected). Postgres integration test. |
 | T1.6 — GET /products + /price-history | ⬜ Todo | — |
 | T1.7 — End-to-end REST slice | ⬜ Todo | M1 gate. |
 
@@ -187,8 +188,8 @@ so no data lands in Postgres or is served over HTTP yet.
 | FR-4 (GraphQL extractor) | 🔴 Not started | M2. |
 | FR-5 (resilience layer) | 🔴 Not started | M3 centerpiece. |
 | FR-6 (ban detection) | 🔴 Not started | M3. |
-| FR-7 (boundary validation) | 🟡 Scaffolded | Config boundary validated; extractor output now validated at the boundary via `RawProduct` (`extra="forbid"`, T1.1); response/pipeline validation lands in T1.4. |
-| FR-8 (normalize + dedup pipeline) | 🟡 Scaffolded | Canonical `Product`/`PriceObservation`/`Money` target models defined + parity-tested (T1.2); the normalize→dedup pipeline itself is T1.4. |
+| FR-7 (boundary validation) | 🟡 Substantial | Config + extractor output validated via `RawProduct` (`extra="forbid"`, T1.1); the pipeline re-asserts the boundary and rejects+counts unmappable items, never persisting garbage (T1.4). Wired into a real crawl at T1.7. |
+| FR-8 (normalize + dedup pipeline) | 🟡 Substantial | Scrapy item pipeline normalizes `RawProduct` → `Product` + `PriceObservation` (Decimal money, canonical id, currency fallback) and dedups within a run, rejecting/counting invalid (T1.2/T1.4, ADR-0010); persisting the output is T1.5. |
 | FR-9 (data-quality gates) | 🔴 Not started | M3. |
 | FR-10 (crawl-run ledger) | 🟡 Scaffolded | `crawl_runs`/`ban_events` tables + `run_id` logging exist; population + health derivation pending M1/M4. |
 | FR-11 (adversarial harness) | 🔴 Not started | M3. |
