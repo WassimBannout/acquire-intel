@@ -134,7 +134,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
   reaches an extractor.
 - **Verify:** unit + harness tests. (FR-6, docs/04 §2.5)
 
-### T3.3 — Throttle, backoff, circuit-breaker
+### [x] T3.3 — Throttle, backoff, circuit-breaker
 - **Goal:** AutoThrottle + per-domain caps; exponential backoff+jitter honoring Retry-After;
   bounded retries; per-domain circuit breaker.
 - **Acceptance:** against harness 429, backoff observed then success; repeated blocks trip the

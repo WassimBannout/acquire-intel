@@ -62,6 +62,16 @@ class Settings(BaseSettings):
     default_download_delay: float = 1.0
     autothrottle_enabled: bool = True
 
+    # --- resilience: throttle / backoff / circuit-breaker (docs/04 §2.3-2.4) --
+    concurrent_requests_per_domain: int = 8
+    autothrottle_max_delay: float = 10.0
+    autothrottle_target_concurrency: float = 4.0
+    backoff_max_retries: int = 3
+    backoff_base_delay: float = 0.5
+    backoff_max_delay: float = 30.0
+    circuit_failure_threshold: int = 5
+    circuit_cooldown_seconds: float = 60.0
+
     # --- harness (tests only) ------------------------------------------------
     harness_base_url: str = "http://localhost:8999"
 

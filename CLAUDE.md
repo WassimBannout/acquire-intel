@@ -122,8 +122,9 @@ uv run python -m harness.server      # start the adversarial mock server
 ## Current status
 
 **Phase 0, Phase 1 (M1) & Phase 2 (M2) complete (all merged to `main`); Phase 3 (M3) — the
-resilience centerpiece — in progress: the adversarial mock harness (T3.1 ✅) and ban classifier
-(T3.2 ✅) land; throttle/backoff/circuit-breaker (T3.3) next.** All three acquisition kinds (REST/HTML/GraphQL) feed one pipeline, and the
+resilience centerpiece — in progress: adversarial mock harness (T3.1 ✅), ban classifier
+(T3.2 ✅), and throttle/backoff/circuit-breaker (T3.3 ✅) land; proxy + identity rotation (T3.4)
+next.** All three acquisition kinds (REST/HTML/GraphQL) feed one pipeline, and the
 first REST vertical slice runs end to end (crawl → pipeline → Postgres → API with freshness). The
 app is built
 **nested in this repo** (not a sibling `../acquire-intel-app`) — one coherent codebase, per the
@@ -341,7 +342,25 @@ products from fixtures through one pipeline + storage; strict ruff/mypy/pytest g
   0 items scraped, 1 ban recorded; happy → 3 items, 0 bans). Full suite **183 passed / 0 skipped**;
   E2E happy-path crawl unaffected. No new ADR (classifier-as-middleware ratified by ADR-0005).
 
-**Next: T3.3 — throttle, backoff, circuit-breaker**: AutoThrottle + per-domain caps; exponential
-backoff+jitter honouring `Retry-After`; bounded retries; a per-domain circuit breaker that
-cools down after repeated blocks — proven against the harness `rate_limited`/repeated-block
-scenarios.
+- **T3.3 — Throttle, backoff, circuit-breaker ✅** (ADR-0005, docs/04 §2.3–2.4). **Throttle**:
+  AutoThrottle + per-domain caps (`CONCURRENT_REQUESTS_PER_DOMAIN`, `AUTOTHROTTLE_*`) from config.
+  **Backoff**: `resilience/backoff.py` is pure full-jitter exponential (`compute_delay`, seeded-RNG
+  testable) honouring `Retry-After` as a floor; `BackoffRetryMiddleware` (@585, above the ban gate)
+  retries **429/503** with a real `await asyncio.sleep` (the retry *decision* is a pure `plan_retry`
+  so it's testable without sleeping), bounded by `max_retries` — once exhausted the response falls
+  through to the ban gate. 429/503 are removed from Scrapy's built-in `RETRY_HTTP_CODES` so this is
+  the single Retry-After-aware owner. **Circuit breaker**: `resilience/circuit.py` is a pure
+  per-domain state machine (closed→open at a failure threshold, open refuses during a cool-down,
+  half-open probe closes on success / re-opens on failure; injectable clock); `CircuitBreakerMiddleware`
+  (@583) counts `blocked/captcha/empty` per domain (not rate-limits — backoff's job) and
+  short-circuits requests to an open domain via `IgnoreRequest`. Middleware order (process_response
+  high→low): backoff 585 → circuit 583 → ban 581. New config knobs + `ACQUIRE_*` Scrapy settings.
+  Proven: 43 tests (backoff maths, circuit FSM, both middlewares incl. the real harness rate-limit
+  sequence) + **verified in the real Scrapy engine** (rate_limited → 3 items, 2 backoff retries, 0
+  bans). Full suite **213 passed / 0 skipped**; E2E happy path unaffected. No new ADR (ratified by
+  ADR-0005).
+
+**Next: T3.4 — proxy manager + identity rotation**: a proxy pool (health/cooldown, zero-proxy =
+direct) and coherent identity bundles (UA + matching headers + cookie jar + Playwright
+fingerprint) that rotate on ban or per session — proven against the harness `block_after_n`
+(rotate identity → success with a fresh identity) and `cookie_wall` scenarios.

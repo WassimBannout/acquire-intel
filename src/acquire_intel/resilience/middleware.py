@@ -14,13 +14,19 @@ identity instead of dropping — is layered on in T3.3 (throttle/backoff) and T3
 
 from __future__ import annotations
 
+import asyncio
+from dataclasses import dataclass
 from datetime import UTC, datetime
+from random import Random
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 from scrapy.exceptions import IgnoreRequest
 
 from acquire_intel.contracts import BanEvent
 from acquire_intel.monitoring.logging import get_logger
+from acquire_intel.resilience.backoff import BackoffPolicy, compute_delay
+from acquire_intel.resilience.circuit import CircuitBreakerRegistry, CircuitState
 from acquire_intel.resilience.classifier import (
     Classification,
     ban_kind,
@@ -29,6 +35,8 @@ from acquire_intel.resilience.classifier import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
     from scrapy import Spider
     from scrapy.crawler import Crawler
     from scrapy.http import Request, Response
@@ -37,10 +45,35 @@ if TYPE_CHECKING:
 _log = get_logger("acquire_intel.resilience.ban")
 
 STAT_BAN_EVENTS = "acquire/ban_events"
+STAT_BACKOFF_RETRIES = "acquire/backoff_retries"
+STAT_BACKOFF_EXHAUSTED = "acquire/backoff_exhausted"
+STAT_CIRCUIT_TRIPPED = "acquire/circuit_tripped"
+STAT_CIRCUIT_SKIPPED = "acquire/circuit_open_skipped"
+
+# Statuses we own the backoff for (429 rate-limit, 503 unavailable). Removed from the built-in
+# retrier (scrapy_settings) so this middleware is the single, Retry-After-aware owner.
+_RETRYABLE_STATUSES = frozenset({429, 503})
+
+# Persistent-adversary classifications that count toward tripping a domain's breaker. Rate-limits
+# are transient and handled by backoff, so they are deliberately excluded.
+_CIRCUIT_FAILURES = frozenset(
+    {Classification.BLOCKED, Classification.CAPTCHA, Classification.EMPTY}
+)
+
+_META_BACKOFF_RETRIES = "backoff_retries"
 
 
 def _stat_for(kind: str) -> str:
     return f"acquire/ban/{kind}"
+
+
+def _domain(url: str) -> str:
+    return urlparse(url).netloc
+
+
+def _is_infra_request(request: Request) -> bool:
+    """robots.txt (and similar infra fetches) must bypass the resilience recovery layer."""
+    return bool(request.meta.get("dont_obey_robotstxt"))
 
 
 class BanDetectionMiddleware:
@@ -55,7 +88,7 @@ class BanDetectionMiddleware:
 
     def process_response(self, request: Request, response: Response, spider: Spider) -> Response:
         # Never gate infrastructure fetches (e.g. robots.txt), only real crawl responses.
-        if request.meta.get("dont_obey_robotstxt"):
+        if _is_infra_request(request):
             return response
 
         classification = classify(status=response.status, body=response.body)
@@ -95,3 +128,145 @@ class BanDetectionMiddleware:
             http_status=event.http_status,
             url=request.url,
         )
+
+
+@dataclass(frozen=True)
+class _RetryPlan:
+    """A decision to retry a request after ``delay`` seconds with the prepared ``request``."""
+
+    delay: float
+    request: Request
+
+
+class BackoffRetryMiddleware:
+    """Retry 429/503 with Retry-After-aware exponential backoff (T3.3, docs/04 §2.4).
+
+    Placed above the ban gate, so a rate-limited/unavailable response is *recovered* (retried
+    under backoff) rather than recorded as a terminal ban. Once retries are exhausted the response
+    falls through to the ban gate, which records it and drops it. ``process_response`` is async so
+    the wait is a real ``await`` on the asyncio reactor; the retry *decision* is a pure method so it
+    is unit-testable without sleeping.
+    """
+
+    def __init__(
+        self,
+        policy: BackoffPolicy,
+        *,
+        stats: StatsCollector | None = None,
+        rng: Random | None = None,
+    ) -> None:
+        self.policy = policy
+        self.stats = stats
+        self.rng = rng or Random()
+        # Injection seam: tests swap in a no-op so the async path runs without real time.
+        self._sleep: Callable[[float], Awaitable[None]] = asyncio.sleep
+
+    @classmethod
+    def from_crawler(cls, crawler: Crawler) -> BackoffRetryMiddleware:
+        s = crawler.settings
+        policy = BackoffPolicy(
+            base_delay=s.getfloat("ACQUIRE_BACKOFF_BASE_DELAY", 0.5),
+            max_delay=s.getfloat("ACQUIRE_BACKOFF_MAX_DELAY", 30.0),
+            max_retries=s.getint("ACQUIRE_BACKOFF_MAX_RETRIES", 3),
+        )
+        return cls(policy, stats=crawler.stats)
+
+    def plan_retry(self, request: Request, response: Response) -> _RetryPlan | None:
+        """Decide whether/what to retry — pure, no sleeping. ``None`` means 'do not retry'."""
+        if _is_infra_request(request) or response.status not in _RETRYABLE_STATUSES:
+            return None
+        attempt = int(request.meta.get(_META_BACKOFF_RETRIES, 0))
+        if attempt >= self.policy.max_retries:
+            if self.stats is not None:
+                self.stats.inc_value(STAT_BACKOFF_EXHAUSTED)
+            return None  # give up → falls through to the ban gate
+
+        delay = compute_delay(
+            attempt,
+            policy=self.policy,
+            retry_after=_parse_retry_after(response),
+            rng=self.rng,
+        )
+        retry = request.copy()
+        retry.dont_filter = True
+        retry.meta[_META_BACKOFF_RETRIES] = attempt + 1
+        return _RetryPlan(delay=delay, request=retry)
+
+    async def process_response(
+        self, request: Request, response: Response, spider: Spider
+    ) -> Response | Request:
+        plan = self.plan_retry(request, response)
+        if plan is None:
+            return response
+        if self.stats is not None:
+            self.stats.inc_value(STAT_BACKOFF_RETRIES)
+        _log.info(
+            "resilience.backoff_retry",
+            url=request.url,
+            status=response.status,
+            delay=round(plan.delay, 3),
+            attempt=plan.request.meta[_META_BACKOFF_RETRIES],
+        )
+        await self._sleep(plan.delay)
+        return plan.request
+
+
+class CircuitBreakerMiddleware:
+    """Per-domain circuit breaker (T3.3, docs/04 §2.4).
+
+    Counts blocks per domain; once a domain trips, its requests are short-circuited for a
+    cool-down instead of hammering it, then a single probe is allowed to test recovery.
+    """
+
+    def __init__(
+        self, registry: CircuitBreakerRegistry, *, stats: StatsCollector | None = None
+    ) -> None:
+        self.registry = registry
+        self.stats = stats
+
+    @classmethod
+    def from_crawler(cls, crawler: Crawler) -> CircuitBreakerMiddleware:
+        s = crawler.settings
+        registry = CircuitBreakerRegistry(
+            failure_threshold=s.getint("ACQUIRE_CIRCUIT_FAILURE_THRESHOLD", 5),
+            cooldown_seconds=s.getfloat("ACQUIRE_CIRCUIT_COOLDOWN_SECONDS", 60.0),
+        )
+        return cls(registry, stats=crawler.stats)
+
+    def process_request(self, request: Request, spider: Spider) -> None:
+        if _is_infra_request(request):
+            return None
+        breaker = self.registry.for_domain(_domain(request.url))
+        if not breaker.allow():
+            if self.stats is not None:
+                self.stats.inc_value(STAT_CIRCUIT_SKIPPED)
+            raise IgnoreRequest(f"circuit open for {_domain(request.url)}")
+        return None
+
+    def process_response(self, request: Request, response: Response, spider: Spider) -> Response:
+        if _is_infra_request(request):
+            return response
+        breaker = self.registry.for_domain(_domain(request.url))
+        classification = classify(status=response.status, body=response.body)
+        if classification in _CIRCUIT_FAILURES:
+            was_open = breaker.state is CircuitState.OPEN
+            breaker.record_failure()
+            if not was_open and breaker.state is CircuitState.OPEN:
+                if self.stats is not None:
+                    self.stats.inc_value(STAT_CIRCUIT_TRIPPED)
+                _log.warning("resilience.circuit_tripped", domain=_domain(request.url))
+        elif classification is Classification.OK:
+            breaker.record_success()
+        # rate_limited is transient (owned by BackoffRetryMiddleware) — no breaker change.
+        return response
+
+
+def _parse_retry_after(response: Response) -> float | None:
+    """Parse a numeric ``Retry-After`` (seconds) header; ignore the HTTP-date form."""
+    raw = response.headers.get(b"Retry-After")
+    if not raw:
+        return None
+    try:
+        return float(raw.decode() if isinstance(raw, bytes) else raw)
+    except (ValueError, AttributeError):
+        return None
