@@ -125,7 +125,68 @@ Priority: P0 launch-blocking, P1 important, P2 nice-to-have. IDs map to `plan/ba
 - **M4 Intelligence + hardening** — price history/deals, dashboard, monitoring, scheduler,
   change detection, CI/CD polish.
 
-## 8. Open questions (resolve as ADRs)
+## 8. Implementation status
+
+*Snapshot as of 2026-07-06. Kept in sync with `plan/backlog.md` and the "Current status"
+section of `CLAUDE.md`; those are the source of truth for task-level state.*
+
+**Overall: M0 (Foundation) complete and gated; M1 (first REST slice) about to begin.** The
+platform is scaffolded end-to-end — it boots, migrates, and answers `/health` — but no
+acquisition technique yet collects real data, so most functional requirements are still
+foundation-only.
+
+### Milestone progress
+
+| Milestone | State | Notes |
+|-----------|-------|-------|
+| **M0 Foundation** | ✅ Complete | Gate passed: `docker compose up` + `uv run` boot; `/health` reflects DB; strict ruff/mypy/pytest green; CI wired. |
+| **M1 First vertical slice (REST)** | ⏳ Not started | Next up: T1.1 — `SourceExtractor` contract + `RawProduct`. |
+| **M2 More techniques (HTML/GraphQL)** | ⬜ Not started | — |
+| **M3 Resilience + harness** | ⬜ Not started | The centerpiece; unbuilt. |
+| **M4 Intelligence + hardening** | ⬜ Not started | — |
+
+### What M0 delivered (T0.1–T0.6, all ✅)
+
+- **Scaffold** — uv project, `src/` layout with the eight concern-modules, ruff + mypy
+  strict, `acquire-intel` CLI entrypoint.
+- **Config & env boundary** — `config/` is the single env boundary (pydantic-settings,
+  fail-fast `ConfigError`); `.env.example` ships every key; no `os.environ` elsewhere.
+- **Storage baseline** — `docker-compose.yml` (Postgres 16); SQLAlchemy 2.0 models for
+  `sources/products/price_observations/crawl_runs/ban_events` (+ indexes); Alembic baseline
+  migration; a repository smoke test round-trips.
+- **Scrapy skeleton** — Scrapy embedded in `acquisition/`, no-op spider, source-registry
+  stub, `acquire-intel crawl <source>` wiring, structlog JSON logging carrying `run_id`.
+- **Flask skeleton** — app factory, RFC 9457 problem+json handlers, `GET /health` (200/503
+  by DB reachability), verified live.
+- **CI** — GitHub Actions: `uv sync --locked` → ruff → format-check → mypy → alembic → pytest
+  with a Postgres service container.
+
+### Functional-requirement status
+
+| FR | Status | Where it stands |
+|----|--------|-----------------|
+| FR-1 (Scrapy engine) | 🟡 Scaffolded | No-op spider + CLI wiring exist; per-source config/crawl behavior pending M1. |
+| FR-2 (REST extractor) | 🔴 Not started | First task of M1 (T1.1–T1.3). |
+| FR-3 (HTML/Playwright) | 🔴 Not started | M2. |
+| FR-4 (GraphQL extractor) | 🔴 Not started | M2. |
+| FR-5 (resilience layer) | 🔴 Not started | M3 centerpiece. |
+| FR-6 (ban detection) | 🔴 Not started | M3. |
+| FR-7 (boundary validation) | 🟡 Scaffolded | Config boundary validated; extractor/response validation lands with the models in M1. |
+| FR-8 (normalize + dedup pipeline) | 🔴 Not started | M1 (T1.4). |
+| FR-9 (data-quality gates) | 🔴 Not started | M3. |
+| FR-10 (crawl-run ledger) | 🟡 Scaffolded | `crawl_runs`/`ban_events` tables + `run_id` logging exist; population + health derivation pending M1/M4. |
+| FR-11 (adversarial harness) | 🔴 Not started | M3. |
+| FR-12 (price-history time-series) | 🟡 Scaffolded | `price_observations` schema exists (append-only); write/query paths pending M1. |
+| FR-13 (Flask API) | 🟡 Scaffolded | App factory + `/health` only; product/history/deals routes pending M1/M4. |
+| FR-14 (dashboard) | 🔴 Not started | M4. |
+| FR-15 (scheduler + admin trigger) | 🔴 Not started | M4. |
+| FR-16 (drift detection) | 🔴 Not started | M4. |
+| FR-17 (deal detection) | 🔴 Not started | M4. |
+
+**Legend:** ✅ done · 🟡 scaffolded (foundation in place, behavior not yet delivered) ·
+🔴 not started · ⬜ milestone not started · ⏳ next up.
+
+## 9. Open questions (resolve as ADRs)
 1. Concrete v1 sources per technique (candidate: Shopify `products.json` REST + Storefront
    GraphQL + a JS-rendered store page). Legal check per `docs/08`.
 2. Proxy provider abstraction — env-configured pool vs. a single proxy; harness works
@@ -133,7 +194,7 @@ Priority: P0 launch-blocking, P1 important, P2 nice-to-have. IDs map to `plan/ba
 3. Scheduler: in-process (APScheduler) vs. external cron/container. See ADR.
 4. Dashboard: server-rendered Jinja + Chart.js vs. a small SPA. Default: Jinja + Chart.js.
 
-## 9. Explicit anti-requirements
+## 10. Explicit anti-requirements
 - **Never** persist a response that failed validation or a data-quality gate.
 - **Never** target auth-walled or PII data.
 - **Never** disable `robots.txt`/rate-limit obedience globally.
