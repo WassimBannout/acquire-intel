@@ -130,20 +130,33 @@ Priority: P0 launch-blocking, P1 important, P2 nice-to-have. IDs map to `plan/ba
 *Snapshot as of 2026-07-06. Kept in sync with `plan/backlog.md` and the "Current status"
 section of `CLAUDE.md`; those are the source of truth for task-level state.*
 
-**Overall: M0 (Foundation) complete and gated; M1 (first REST slice) about to begin.** The
-platform is scaffolded end-to-end — it boots, migrates, and answers `/health` — but no
-acquisition technique yet collects real data, so most functional requirements are still
-foundation-only.
+**Overall: M0 (Foundation) complete and gated; M1 (first REST slice) in progress — the
+extractor contract is in.** The platform is scaffolded end-to-end — it boots, migrates, and
+answers `/health` — and the `SourceExtractor`/`RawProduct` contract that all sources plug into
+now exists and is parity-tested against its published JSON Schema. No acquisition technique yet
+collects real data, so most functional requirements remain foundation-only.
 
 ### Milestone progress
 
 | Milestone | State | Notes |
 |-----------|-------|-------|
 | **M0 Foundation** | ✅ Complete | Gate passed: `docker compose up` + `uv run` boot; `/health` reflects DB; strict ruff/mypy/pytest green; CI wired. |
-| **M1 First vertical slice (REST)** | ⏳ Not started | Next up: T1.1 — `SourceExtractor` contract + `RawProduct`. |
+| **M1 First vertical slice (REST)** | 🟡 In progress | T1.1 ✅ done (extractor contract + `RawProduct`). Next: T1.2 canonical models → T1.3 REST extractor → … → T1.7 E2E gate. |
 | **M2 More techniques (HTML/GraphQL)** | ⬜ Not started | — |
 | **M3 Resilience + harness** | ⬜ Not started | The centerpiece; unbuilt. |
 | **M4 Intelligence + hardening** | ⬜ Not started | — |
+
+### M1 progress (REST slice)
+
+| Task | State | Notes |
+|------|-------|-------|
+| T1.1 — SourceExtractor contract + RawProduct | ✅ Done | `acquisition/extractor.py`: `RawProduct` pydantic model (`extra="forbid"`) + `runtime_checkable` `SourceExtractor` Protocol; parity-tested vs `raw-product.schema.json`; valid/invalid + conformance tests green. |
+| T1.2 — Canonical models + contract parity | ⏳ Next | `Product`, `PriceObservation`, `Money(Decimal+currency)`, `CrawlRun`, `BanEvent`. |
+| T1.3 — REST extractor | ⬜ Todo | Paginated JSON → `RawProduct`s; fixtures. |
+| T1.4 — Pipeline: validate → normalize → dedup | ⬜ Todo | — |
+| T1.5 — Persistence + crawl-run ledger | ⬜ Todo | — |
+| T1.6 — GET /products + /price-history | ⬜ Todo | — |
+| T1.7 — End-to-end REST slice | ⬜ Todo | M1 gate. |
 
 ### What M0 delivered (T0.1–T0.6, all ✅)
 
@@ -166,12 +179,12 @@ foundation-only.
 | FR | Status | Where it stands |
 |----|--------|-----------------|
 | FR-1 (Scrapy engine) | 🟡 Scaffolded | No-op spider + CLI wiring exist; per-source config/crawl behavior pending M1. |
-| FR-2 (REST extractor) | 🔴 Not started | First task of M1 (T1.1–T1.3). |
+| FR-2 (REST extractor) | 🟡 Scaffolded | `SourceExtractor` contract + `RawProduct` output model landed (T1.1); the concrete REST extractor is T1.3. |
 | FR-3 (HTML/Playwright) | 🔴 Not started | M2. |
 | FR-4 (GraphQL extractor) | 🔴 Not started | M2. |
 | FR-5 (resilience layer) | 🔴 Not started | M3 centerpiece. |
 | FR-6 (ban detection) | 🔴 Not started | M3. |
-| FR-7 (boundary validation) | 🟡 Scaffolded | Config boundary validated; extractor/response validation lands with the models in M1. |
+| FR-7 (boundary validation) | 🟡 Scaffolded | Config boundary validated; extractor output now validated at the boundary via `RawProduct` (`extra="forbid"`, T1.1); response/pipeline validation lands in T1.4. |
 | FR-8 (normalize + dedup pipeline) | 🔴 Not started | M1 (T1.4). |
 | FR-9 (data-quality gates) | 🔴 Not started | M3. |
 | FR-10 (crawl-run ledger) | 🟡 Scaffolded | `crawl_runs`/`ban_events` tables + `run_id` logging exist; population + health derivation pending M1/M4. |
