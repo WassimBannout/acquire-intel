@@ -16,6 +16,7 @@ dependencies = [
     "alembic>=1.13",            # T0.3: schema migrations
     "psycopg[binary]>=3.1",     # T0.3: PostgreSQL driver (matches +psycopg URL)
     "scrapy>=2.11",             # T0.4: crawl backbone (ADR-0002)
+    "scrapy-playwright>=0.0.40", # T2.1: JS-rendered HTML extractor (ADR-0002)
     "structlog>=24.1",          # T0.4: structured JSON logging with run_id (docs/07)
     "flask>=3.0",               # T0.5: read/serve API + dashboard (ADR-0007)
 ]
@@ -97,6 +98,12 @@ disallow_any_unimported = true
 mypy_path = "src"
 files = ["src"]
 
+# scrapy-playwright / playwright ship no type information; treat their imports as untyped
+# (we never expose their types in our own signatures — PageMethod is used as a value only).
+[[tool.mypy.overrides]]
+module = ["scrapy_playwright.*", "playwright.*"]
+ignore_missing_imports = true
+
 # --- Pytest ------------------------------------------------------------------
 [tool.pytest.ini_options]
 minversion = "8.0"
@@ -104,4 +111,5 @@ testpaths = ["tests"]
 addopts = "-ra"
 markers = [
     "integration: requires a live Postgres (docker compose up); skipped if unreachable",
+    "playwright: requires a Playwright browser binary; skipped if not installed",
 ]

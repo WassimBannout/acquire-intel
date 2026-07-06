@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Vaelor — All products</title>
+  </head>
+  <body>
+    <!-- The same page after a site redesign: the product card lost its
+         `data-product-id` hook (now `data-sku` on a renamed wrapper). Our resilient
+         selector matches nothing → the extractor yields nothing and the run records a
+         drift, rather than emitting garbage (contract rule 3). -->
+    <main data-testid="catalog" class="listing">
+      <div class="tile" data-sku="H-1001">
+        <a class="tile__link" href="/products/aurora-daypack">
+          <img class="tile__img" src="https://cdn.example.com/img/aurora.jpg" alt="Aurora Daypack" />
+        </a>
+        <h3 class="tile__name">Aurora Daypack</h3>
+        <span class="tile__brand">Vaelor</span>
+        <span class="tile__cost" data-amount="79.90" data-cur="EUR">€79.90</span>
+        <span class="tile__avail" data-available="true">In stock</span>
+      </div>
+
+      <div class="tile" data-sku="H-1002">
+        <a class="tile__link" href="/products/nimbus-rain-shell">
+          <img class="tile__img" src="https://cdn.example.com/img/nimbus.jpg" alt="Nimbus Rain Shell" />
+        </a>
+        <h3 class="tile__name">Nimbus Rain Shell</h3>
+        <span class="tile__brand">Vaelor</span>
+        <span class="tile__cost" data-amount="149.00" data-cur="EUR">€149.00</span>
+        <span class="tile__avail" data-available="false">Sold out</span>
+      </div>
+    </main>
+  </body>
+</html>

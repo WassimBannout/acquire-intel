@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from acquire_intel.acquisition.sources.demo_graphql import DemoGraphqlExtractor
+from acquire_intel.acquisition.sources.demo_html import DemoHtmlExtractor
 from acquire_intel.acquisition.sources.demo_rest import DemoRestExtractor
 from acquire_intel.acquisition.spiders.noop import NoOpSpider
 
@@ -17,6 +19,8 @@ if TYPE_CHECKING:
 _REGISTRY: dict[str, type[Spider]] = {
     "demo": NoOpSpider,
     "demo_rest": DemoRestExtractor,
+    "demo_html": DemoHtmlExtractor,
+    "demo_graphql": DemoGraphqlExtractor,
 }
 
 

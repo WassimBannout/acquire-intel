@@ -99,19 +99,19 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 
 ## Phase 2 — More techniques (M2)
 
-### T2.1 — HTML extractor (Playwright)
+### [x] T2.1 — HTML extractor (Playwright)
 - **Goal:** an HTML `SourceExtractor` using `scrapy-playwright` for a JS-rendered page;
   fixtures (rendered HTML snapshot + expected output; a drifted snapshot).
 - **Acceptance:** parses rendered fixture → RawProducts; drifted fixture → rejected.
 - **Verify:** fixture tests; a real Playwright render smoke test. (FR-3, ADR-0002)
 
-### T2.2 — GraphQL extractor
+### [x] T2.2 — GraphQL extractor
 - **Goal:** a GraphQL `SourceExtractor`: typed query construction, variables, cursor
   pagination; fixtures (GraphQL response + expected; malformed).
 - **Acceptance:** paginates via cursors; parses nodes → RawProducts; malformed → rejected.
 - **Verify:** fixture tests. (FR-4, ADR-0004)
 
-### T2.3 — Three-kinds parity
+### [x] T2.3 — Three-kinds parity
 - **Goal:** confirm all three extractors feed the identical pipeline/storage with no
   source-specific code leaking into shared layers.
 - **Acceptance:** one pipeline test runs REST/HTML/GraphQL fixtures → canonical products.

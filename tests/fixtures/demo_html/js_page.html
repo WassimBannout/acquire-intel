@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Vaelor — All products (client-rendered)</title>
+  </head>
+  <body>
+    <!-- The product grid does NOT exist in the initial HTML: a non-JS fetch sees an
+         empty <main>. A script builds the same DOM as rendered.html at load, so only a
+         real browser render (Playwright) exposes the products. Proves JS rendering. -->
+    <main data-testid="product-grid" class="grid"></main>
+    <script>
+      const PRODUCTS = [
+        {
+          id: "H-1001", title: "Aurora Daypack", brand: "Vaelor",
+          href: "/products/aurora-daypack", img: "https://cdn.example.com/img/aurora.jpg",
+          price: "79.90", currency: "EUR", inStock: true
+        },
+        {
+          id: "H-1002", title: "Nimbus Rain Shell", brand: "Vaelor",
+          href: "/products/nimbus-rain-shell", img: "https://cdn.example.com/img/nimbus.jpg",
+          price: "149.00", currency: "EUR", inStock: false
+        },
+        {
+          id: "H-1003", title: "Ghost Item", brand: "Vaelor",
+          href: "/products/ghost-item", img: "https://cdn.example.com/img/ghost.jpg",
+          price: null, currency: "EUR", inStock: true
+        }
+      ];
+      function render() {
+        const grid = document.querySelector('[data-testid="product-grid"]');
+        for (const p of PRODUCTS) {
+          const card = document.createElement("article");
+          card.className = "product-card";
+          card.setAttribute("data-product-id", p.id);
+          const priceHtml = p.price === null
+            ? ""
+            : `<span class="product-card__price" data-price="${p.price}" data-currency="${p.currency}">${p.currency} ${p.price}</span>`;
+          card.innerHTML = `
+            <a class="product-card__link" href="${p.href}">
+              <img class="product-card__img" src="${p.img}" alt="${p.title}" />
+            </a>
+            <h3 class="product-card__title">${p.title}</h3>
+            <span class="product-card__brand">${p.brand}</span>
+            ${priceHtml}
+            <span class="product-card__stock" data-in-stock="${p.inStock}">${p.inStock ? "In stock" : "Sold out"}</span>
+          `;
+          grid.appendChild(card);
+        }
+      }
+      // Defer so the initial document truly has no product nodes before scripting.
+      window.addEventListener("DOMContentLoaded", () => setTimeout(render, 30));
+    </script>
+  </body>
+</html>

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Vaelor — All products</title>
+  </head>
+  <body>
+    <!-- A snapshot of the product grid *after* the store's JS has rendered it.
+         Critical fields hang off stable data-* hooks (resilient selectors); the
+         drifted snapshot renames them so nothing is matched (parses to nothing). -->
+    <main data-testid="product-grid" class="grid">
+      <article class="product-card" data-product-id="H-1001">
+        <a class="product-card__link" href="/products/aurora-daypack">
+          <img class="product-card__img" src="https://cdn.example.com/img/aurora.jpg" alt="Aurora Daypack" />
+        </a>
+        <h3 class="product-card__title">Aurora Daypack</h3>
+        <span class="product-card__brand">Vaelor</span>
+        <span class="product-card__price" data-price="79.90" data-currency="EUR">€79.90</span>
+        <span class="product-card__stock" data-in-stock="true">In stock</span>
+      </article>
+
+      <article class="product-card" data-product-id="H-1002">
+        <a class="product-card__link" href="/products/nimbus-rain-shell">
+          <img class="product-card__img" src="https://cdn.example.com/img/nimbus.jpg" alt="Nimbus Rain Shell" />
+        </a>
+        <h3 class="product-card__title">Nimbus Rain Shell</h3>
+        <span class="product-card__brand">Vaelor</span>
+        <span class="product-card__price" data-price="149.00" data-currency="EUR">€149.00</span>
+        <span class="product-card__stock" data-in-stock="false">Sold out</span>
+      </article>
+
+      <!-- No price hook: skipped, never fabricated (contract rule 3). -->
+      <article class="product-card" data-product-id="H-1003">
+        <a class="product-card__link" href="/products/ghost-item">
+          <img class="product-card__img" src="https://cdn.example.com/img/ghost.jpg" alt="Ghost Item" />
+        </a>
+        <h3 class="product-card__title">Ghost Item</h3>
+        <span class="product-card__brand">Vaelor</span>
+        <span class="product-card__stock" data-in-stock="true">In stock</span>
+      </article>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,24 @@
+[
+  {
+    "external_id": "gid://shopify/Product/8001",
+    "title": "Aurora Desk Lamp",
+    "url": "https://graphql.example.com/products/aurora-desk-lamp",
+    "raw_price": "59.90",
+    "currency": "EUR",
+    "in_stock": true,
+    "brand": "Lumen",
+    "image_url": "https://cdn.example.com/img/aurora-lamp.jpg",
+    "extra": { "handle": "aurora-desk-lamp" }
+  },
+  {
+    "external_id": "gid://shopify/Product/8002",
+    "title": "Nimbus Office Chair",
+    "url": "https://graphql.example.com/products/nimbus-office-chair",
+    "raw_price": "249.00",
+    "currency": "EUR",
+    "in_stock": false,
+    "brand": "SitWell",
+    "image_url": null,
+    "extra": { "handle": "nimbus-office-chair" }
+  }
+]

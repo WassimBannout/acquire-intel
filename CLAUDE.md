@@ -121,8 +121,11 @@ uv run python -m harness.server      # start the adversarial mock server
 
 ## Current status
 
-**Phase 0 & Phase 1 (M1) complete — first REST vertical slice runs end to end (crawl → pipeline
-→ Postgres → API with freshness). Next: Phase 2 (M2), more techniques.** The app is built
+**Phase 0 & Phase 1 (M1) complete (merged to `main`); Phase 2 (M2) complete — all three
+acquisition kinds land: HTML/Playwright (T2.1 ✅), GraphQL (T2.2 ✅), three-kinds parity gate
+(T2.3 ✅). Next: Phase 3 (M3), the resilience centerpiece.** The
+first REST vertical slice runs end to end (crawl → pipeline → Postgres → API with freshness). The
+app is built
 **nested in this repo** (not a sibling `../acquire-intel-app`) — one coherent codebase, per the
 vision. App scaffold lives at the repo root: `pyproject.toml` (uv), `src/acquire_intel/` with
 the eight concern-modules, `tests/`. Python 3.12 pinned via `.python-version`.
@@ -244,8 +247,59 @@ ruff/mypy/pytest all green; CI wired.
   `success items_ok=2`; curl shows both routes). No new ADR (wiring follows ADR-0002/0003/0006/0010).
 
 **Phase 1 / M1 gate: DONE.** Crawl the REST source → observations persisted → API returns them
-with freshness; strict ruff/mypy/pytest green.
+with freshness; strict ruff/mypy/pytest green. Merged to `main` via PR #3.
 
-**Next: Phase 2 (M2) — more techniques.** T2.1 — HTML extractor via Playwright
-(`scrapy-playwright`, JS-rendered fixture) under the same `SourceExtractor` contract, feeding the
-identical pipeline/storage. Then T2.2 GraphQL extractor, T2.3 three-kinds parity.
+### Phase 2 — More techniques (M2)
+
+- **T2.1 — HTML extractor (Playwright) ✅** — `acquisition/sources/demo_html.py` adds
+  `DemoHtmlExtractor` (`kind="html"`), the second concrete `SourceExtractor`: a `scrapy.Spider`
+  whose listing request is **Playwright-marked** (`meta={"playwright": True, …
+  PageMethod("wait_for_selector", "[data-product-id]")}`) so JS-rendered pages hydrate before
+  parse. The HTML→`RawProduct` map is a **pure function** (`parse_products`) over rendered HTML
+  using resilient `data-*` selectors, so it's fixture-tested without a browser; missing price/id
+  → card skipped (never fabricated), and **selector drift** (renamed hooks) → yields nothing
+  (ADR-0008, contract rule 3). `scrapy-playwright` added (ratified by ADR-0002); Scrapy settings
+  enable the Playwright download handlers + asyncio reactor **globally but lazily** — the handler
+  delegates non-`playwright` requests to the default downloader, so REST/GraphQL are unaffected
+  and no browser launches unless a request opts in (verified: REST E2E still green). Registered as
+  `demo_html`. Fixtures under `tests/fixtures/demo_html/` (rendered snapshot + expected + drifted +
+  a client-rendered `js_page.html`); 12 tests incl. a **real Chromium render** smoke test (marked
+  `playwright`, skips if the browser is absent; CI installs Chromium). Full suite **129 passed /
+  0 skipped** locally. No new ADR (Playwright ratified by ADR-0002).
+
+- **T2.2 — GraphQL extractor ✅** — `acquisition/sources/demo_graphql.py` adds
+  `DemoGraphqlExtractor` (`kind="graphql"`), the third concrete `SourceExtractor`: a
+  `scrapy.Spider` that issues a **typed** GraphQL operation (`query Products($first: Int!, $after:
+  String)`) as a JSON `POST` (`scrapy.http.JsonRequest`) against a Shopify Storefront-style Relay
+  connection, and follows **cursor pagination** via `pageInfo { hasNextPage endCursor }` (each
+  follow-up carries the `after` cursor in its variables, kept inside the Scrapy engine so the
+  shared resilience layer stays in force). The query shape is derived from the public Storefront
+  API docs (documented in the module docstring per ADR-0004's follow-up), checked in and
+  fixture-tested. Nodes → `RawProduct` (per-node `currencyCode` carried through, unlike REST's
+  shop-level currency); robustness contract holds — a GraphQL `errors` payload / block page /
+  non-JSON / wrong shape yields **nothing** and stops paging, and a node with a null
+  `minVariantPrice` is skipped, never fabricated (ADR-0008). Registered as `demo_graphql`.
+  Fixtures under `tests/fixtures/demo_graphql/` (page-1 with one price-less node + expected + a
+  final page + a `errors` malformed response); 13 tests (protocol/identity/typed-POST/mapping/
+  per-node-currency/cursor-follow/last-page-stop/4× rejection/registry). Full suite **142 passed /
+  0 skipped** with the DB up. No new ADR (GraphQL ratified by ADR-0004; Spider-subclass + POST
+  realization follows the REST precedent).
+
+- **T2.3 — Three-kinds parity ✅ (M2 gate passed)** — `tests/test_three_kinds_parity.py` proves the
+  headline M2 claim two ways. (1) A **parameterized integration test** (`ids=[rest, html,
+  graphql]`) parses each source's checked-in fixture with its *own* extractor → `RawProduct`s, then
+  drives them through the **one** shared path (`normalize` → `ProductRepository.upsert` /
+  `PriceObservationRepository.append`) into Postgres; the ingest function is identical for every
+  kind, per-source config the only variable. It asserts each kind yields canonical
+  `{source}:{external_id}` products + one immutable observation apiece with `Decimal` money + a
+  3-letter ISO currency — identical canonical shape regardless of technique. (2) A **fast
+  structural guard** (`test_shared_layers_are_source_agnostic`, no DB) asserts the shared
+  pipeline/storage modules (`normalize.py`, `item_pipeline.py`, `persistence.py`,
+  `repositories.py`) import nothing from `acquisition.sources` and name no concrete source — so no
+  per-kind branch can hide in a shared layer. Full suite **146 passed / 0 skipped** with the DB up;
+  ruff/mypy clean. No new ADR (verification task; source-agnostic shared layers are the design per
+  ADR-0003).
+
+**Phase 2 / M2 gate: DONE.** All three acquisition kinds (REST/HTML/GraphQL) produce canonical
+products from fixtures through one pipeline + storage; strict ruff/mypy/pytest green. **Next: Phase
+3 (M3) — the resilience centerpiece**, starting T3.1 (adversarial mock harness).

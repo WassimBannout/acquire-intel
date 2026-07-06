@@ -1,0 +1,24 @@
+[
+  {
+    "external_id": "H-1001",
+    "title": "Aurora Daypack",
+    "url": "https://demo-html.example.com/products/aurora-daypack",
+    "raw_price": "79.90",
+    "currency": "EUR",
+    "in_stock": true,
+    "brand": "Vaelor",
+    "image_url": "https://cdn.example.com/img/aurora.jpg",
+    "extra": {}
+  },
+  {
+    "external_id": "H-1002",
+    "title": "Nimbus Rain Shell",
+    "url": "https://demo-html.example.com/products/nimbus-rain-shell",
+    "raw_price": "149.00",
+    "currency": "EUR",
+    "in_stock": false,
+    "brand": "Vaelor",
+    "image_url": "https://cdn.example.com/img/nimbus.jpg",
+    "extra": {}
+  }
+]
