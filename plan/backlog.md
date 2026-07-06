@@ -58,7 +58,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 - **Acceptance:** valid accepted, invalid rejected; parity passes.
 - **Verify:** unit + parity tests. (ADR-0003, ADR-0008)
 
-### T1.2 — Canonical models + contract parity
+### [x] T1.2 — Canonical models + contract parity
 - **Goal:** pydantic `Product`, `PriceObservation`, `Money(Decimal+currency)`, `CrawlRun`,
   `BanEvent`; parity tests vs `specs/data-contracts/`.
 - **Acceptance:** money is Decimal+currency (no float); parity passes.

@@ -164,5 +164,16 @@ ruff/mypy/pytest all green; CI wired.
   protocol-conformance tests green (18 new, full suite 34 passed / 3 Postgres-skipped). No new
   ADR (contract already set by ADR-0003/0008).
 
-**Next: T1.2 — Canonical models + contract parity** (`Product`, `PriceObservation`,
-`Money(Decimal+currency)`, `CrawlRun`, `BanEvent`; docs/03, ADR-0008).
+- **T1.2 — Canonical models + contract parity ✅** — `contracts.py` (top-level) defines the
+  canonical pydantic models: `Money` (Decimal + ISO-4217 currency, serialized as a **string**,
+  never a float), `Product` (projection with optional nested `Money`), `PriceObservation`
+  (append-only, flat amount+currency), `CrawlRun` (status enum, item counts, array of typed
+  `BanEvent`s, timings), `BanEvent` (kind/action enums). Shared `UtcDatetime` type rejects
+  naive datetimes and normalizes to UTC. Parity tests assert every model matches its
+  `specs/data-contracts/` JSON Schema (property/required/closed/serialized-types/date-time
+  formats via a validation-vs-serialization schema comparison); money/UTC/enum invariant tests
+  green (24 new, full suite 58 passed / 3 Postgres-skipped). No new ADR (contract already set by
+  ADR-0008/docs/03).
+
+**Next: T1.3 — REST extractor** (paginated JSON `SourceExtractor` → `RawProduct`s; fixtures:
+valid payload + expected output + malformed; ADR-0004, docs/04 §1).
