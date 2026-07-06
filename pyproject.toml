@@ -63,7 +63,7 @@ select = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["acquire_intel"]
+known-first-party = ["acquire_intel", "harness"]
 
 [tool.ruff.lint.per-file-ignores]
 # SQLAlchemy resolves Mapped[...] annotations at runtime (PEP 563 + declarative),
@@ -108,6 +108,7 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]
+pythonpath = ["."]  # make the top-level `harness` package importable in tests
 addopts = "-ra"
 markers = [
     "integration: requires a live Postgres (docker compose up); skipped if unreachable",

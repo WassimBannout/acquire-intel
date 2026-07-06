@@ -86,7 +86,7 @@ uv run scrapy crawl <spider>         # run one spider
 uv run acquire-intel crawl <source>  # CLI wrapper (on-demand crawl)
 uv run flask --app acquire_intel.api run   # API + dashboard
 uv run pytest                        # unit + integration + harness tests
-uv run ruff check . && uv run mypy src     # lint + typecheck
+uv run ruff check . && uv run mypy src harness   # lint + typecheck
 docker compose up -d                 # Postgres for local dev (DB_HOST_PORT overrides host port)
 uv run alembic upgrade head          # apply DB migrations
 uv run python -m harness.server      # start the adversarial mock server
@@ -121,9 +121,9 @@ uv run python -m harness.server      # start the adversarial mock server
 
 ## Current status
 
-**Phase 0 & Phase 1 (M1) complete (merged to `main`); Phase 2 (M2) complete — all three
-acquisition kinds land: HTML/Playwright (T2.1 ✅), GraphQL (T2.2 ✅), three-kinds parity gate
-(T2.3 ✅). Next: Phase 3 (M3), the resilience centerpiece.** The
+**Phase 0, Phase 1 (M1) & Phase 2 (M2) complete (all merged to `main`); Phase 3 (M3) — the
+resilience centerpiece — in progress: the adversarial mock harness lands (T3.1 ✅); ban classifier
+(T3.2) next.** All three acquisition kinds (REST/HTML/GraphQL) feed one pipeline, and the
 first REST vertical slice runs end to end (crawl → pipeline → Postgres → API with freshness). The
 app is built
 **nested in this repo** (not a sibling `../acquire-intel-app`) — one coherent codebase, per the
@@ -301,5 +301,30 @@ with freshness; strict ruff/mypy/pytest green. Merged to `main` via PR #3.
   ADR-0003).
 
 **Phase 2 / M2 gate: DONE.** All three acquisition kinds (REST/HTML/GraphQL) produce canonical
-products from fixtures through one pipeline + storage; strict ruff/mypy/pytest green. **Next: Phase
-3 (M3) — the resilience centerpiece**, starting T3.1 (adversarial mock harness).
+products from fixtures through one pipeline + storage; strict ruff/mypy/pytest green. Merged to
+`main` via PR #4.
+
+### Phase 3 — Resilience: the centerpiece (M3)
+
+- **T3.1 — Adversarial mock harness ✅** — `harness/` (a new top-level dev/test package, **not**
+  shipped in the wheel) is a self-contained Flask mock server the resilience layer is proven
+  against (ADR-0009, docs/04 §4, docs/06 §4). Scenarios are selected by URL path
+  (`GET /<scenario>/products.json`): `happy` (200 + parseable `products.json`-shaped data,
+  paginated), `rate_limited` (429 + `Retry-After` for a per-identity burst, then 200),
+  `block_after_n` (200 up to a per-identity budget, then 403 — a **fresh identity resets it**),
+  `captcha` (200 challenge page, not data), `cookie_wall` (403 + `Set-Cookie` until the session
+  cookie is carried back), `soft_ban` (200 + empty body), `drift` (200, envelope intact but item
+  fields renamed → unmappable). All behaviour is **deterministic**: count-based scenarios key
+  state on the caller's identity (`X-Harness-Identity` → `User-Agent` → remote addr), and
+  `POST /__admin__/reset` clears counters so a test starts from a known state. `HarnessConfig`
+  makes thresholds overridable. Run via `uv run python -m harness.server` (documented in
+  `harness/README.md`). Wiring: pytest `pythonpath=["."]` so `harness` imports in tests; CI +
+  `mypy src harness` now type-check it; `harness` added to ruff isort first-party. 12 self-tests +
+  verified live (curl: 429→429→200; 200×3→403; soft-ban 200 empty). Full suite **158 passed / 0
+  skipped** with the DB up. No new ADR (harness ratified by ADR-0009; scenario conventions
+  documented in-module + README).
+
+**Next: T3.2 — ban/anti-bot classifier**: label each response `ok|rate_limited|blocked|captcha|
+empty` (status + body markers + size + redirect), emit a `BanEvent`, and ensure a non-ok response
+**never** reaches an extractor — wired as a Scrapy downloader middleware, proven against the
+harness.

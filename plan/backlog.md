@@ -121,7 +121,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 
 ## Phase 3 — Resilience: the centerpiece (M3)
 
-### T3.1 — Adversarial mock harness
+### [x] T3.1 — Adversarial mock harness
 - **Goal:** `harness/` server with configurable scenarios: happy, 429+Retry-After,
   403-after-N-per-identity, CAPTCHA/challenge, cookie-wall, soft-ban (200+empty), drift.
 - **Acceptance:** each scenario is selectable and deterministic; documented.
