@@ -155,10 +155,10 @@ largest and highest-value phase**, and the intelligence/hardening layer (M4). By
 remaining work and the core competency this project exists to demonstrate. Per-milestone,
 per-task, and per-FR detail follows.
 
-**Overall: M0 (Foundation) and M1 (first REST slice) complete and gated — the first vertical
-slice runs end to end. Next: M2 (more techniques).** The platform boots, migrates, and answers
+**Overall: M0 (Foundation) and M1 (first REST slice) complete and gated; M2 (more techniques)
+underway — the HTML (Playwright) extractor now lands.** The platform boots, migrates, and answers
 `/health`; the canonical data contracts exist and are parity-tested; and a single command,
-`acquire-intel crawl demo_rest`, now drives the **whole slice**: the REST extractor fetches a
+`acquire-intel crawl demo_rest`, drives the **whole slice**: the REST extractor fetches a
 paginated `products.json` → the Scrapy item pipeline validates → normalizes (Decimal money,
 canonical id, UTC capture) → dedups (rejecting/counting anything unmappable) → the persistence
 pipeline upserts the `products` projection and appends immutable `price_observations`, with the
@@ -167,8 +167,10 @@ runner opening/closing a `crawl_runs` ledger row (terminal status + item counts)
 each carrying freshness (`dataAsOf` + `stale`) and per-point `capturedAt`/`sourceId`, with
 `Money.amount` as a string and a 404 problem+json for unknown products. The whole path is proven
 by an end-to-end test (a real CLI subprocess crawling a local fixture server → Postgres → API)
-plus focused integration tests, all against Postgres. What's next is M2: HTML (Playwright) and
-GraphQL extractors under the same contract, feeding the identical pipeline/storage.
+plus focused integration tests, all against Postgres. **M2 has since added a second technique** —
+`demo_html`, a JS-rendered **HTML** source that `scrapy-playwright` renders and parses under the
+same `SourceExtractor` contract (T2.1). What's next in M2: the **GraphQL** extractor (T2.2) and a
+three-kinds parity check (T2.3), both feeding the identical pipeline/storage.
 
 ### Milestone progress
 
