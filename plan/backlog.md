@@ -64,7 +64,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 - **Acceptance:** money is Decimal+currency (no float); parity passes.
 - **Verify:** unit + parity tests. (docs/03, ADR-0008)
 
-### T1.3 — REST extractor
+### [x] T1.3 — REST extractor
 - **Goal:** a REST `SourceExtractor` (paginated JSON) with rate-limit-aware requests;
   fixtures: valid payload + expected `RawProduct`s + a malformed payload.
 - **Acceptance:** valid fixture → correct RawProducts; malformed → yields nothing (no junk).

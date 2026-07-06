@@ -1,13 +1,14 @@
-"""Source registry (stub for T0.4).
+"""Source registry.
 
-Maps a source id to the spider that crawls it. Today it holds only the ``demo``
-no-op source; real sources register here as their extractor slices land (T1+).
+Maps a source id to the spider/extractor that crawls it. Holds the ``demo`` no-op
+source (T0.4) and real ``SourceExtractor`` sources as their slices land (T1+).
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from acquire_intel.acquisition.sources.demo_rest import DemoRestExtractor
 from acquire_intel.acquisition.spiders.noop import NoOpSpider
 
 if TYPE_CHECKING:
@@ -15,6 +16,7 @@ if TYPE_CHECKING:
 
 _REGISTRY: dict[str, type[Spider]] = {
     "demo": NoOpSpider,
+    "demo_rest": DemoRestExtractor,
 }
 
 

@@ -73,6 +73,8 @@ known-first-party = ["acquire_intel"]
 # not TYPE_CHECKING-only.
 "src/acquire_intel/acquisition/extractor.py" = ["TC001", "TC002", "TC003"]
 "src/acquire_intel/contracts.py" = ["TC001", "TC002", "TC003"]
+# Extractors construct RawProduct at runtime; keep its field types importable.
+"src/acquire_intel/acquisition/sources/demo_rest.py" = ["TC001", "TC002", "TC003"]
 # Alembic-generated migrations: leave their import layout as emitted.
 "src/acquire_intel/storage/migrations/versions/*" = ["I001", "TC001", "TC002", "TC003"]
 

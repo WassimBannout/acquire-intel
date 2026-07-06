@@ -175,5 +175,18 @@ ruff/mypy/pytest all green; CI wired.
   green (24 new, full suite 58 passed / 3 Postgres-skipped). No new ADR (contract already set by
   ADR-0008/docs/03).
 
-**Next: T1.3 — REST extractor** (paginated JSON `SourceExtractor` → `RawProduct`s; fixtures:
-valid payload + expected output + malformed; ADR-0004, docs/04 §1).
+- **T1.3 — REST extractor ✅** — `acquisition/sources/demo_rest.py` defines `DemoRestExtractor`,
+  the first concrete `SourceExtractor` (`kind="rest"`): a `scrapy.Spider` subclass (following the
+  `NoOpSpider` registry precedent) that also satisfies the protocol, with `async start()`
+  bridging to `start_requests()`. Fetches a paginated Shopify-style `products.json`
+  (`?page=N` until an empty page), maps each product → `RawProduct`, and **never emits garbage**:
+  a malformed/blocked/non-JSON/wrong-shape page yields nothing (and stops paging), and any item
+  missing a required field (e.g. no price) is skipped, not fabricated (ADR-0008). Registered as
+  `demo_rest`. Fixtures under `tests/fixtures/demo_rest/` (valid payload w/ one bad item +
+  expected output + malformed); 12 fixture tests green (full suite 70 passed / 3
+  Postgres-skipped). No new ADR (Spider-subclass realization implied by ADR-0002/0003 + the
+  registry precedent; demo shape is a fixture detail).
+
+**Next: T1.4 — Pipeline: validate → normalize → dedup** (Scrapy item pipeline: `RawProduct` →
+`Product` + `PriceObservation` with Decimal money + canonical id + UTC `captured_at`; dedup
+within a run; invalid items rejected + counted; docs/03 §3, ADR-0008).
