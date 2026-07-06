@@ -89,7 +89,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 - **Acceptance:** spec-conformant; freshness present; 404 path works.
 - **Verify:** Flask test-client integration tests. (FR-13)
 
-### T1.7 — End-to-end REST slice
+### [x] T1.7 — End-to-end REST slice
 - **Goal:** `acquire-intel crawl <rest_source>` → data lands in Postgres → API serves it.
 - **Acceptance:** a real (friendly) or fixture-backed crawl produces observations returned by
   the API with correct freshness.

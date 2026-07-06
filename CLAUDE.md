@@ -121,7 +121,8 @@ uv run python -m harness.server      # start the adversarial mock server
 
 ## Current status
 
-**Phase 0 complete; Phase 1 (M1) in progress — first vertical slice: REST.** The app is built
+**Phase 0 & Phase 1 (M1) complete — first REST vertical slice runs end to end (crawl → pipeline
+→ Postgres → API with freshness). Next: Phase 2 (M2), more techniques.** The app is built
 **nested in this repo** (not a sibling `../acquire-intel-app`) — one coherent codebase, per the
 vision. App scaffold lives at the repo root: `pyproject.toml` (uv), `src/acquire_intel/` with
 the eight concern-modules, `tests/`. Python 3.12 pinned via `.python-version`.
@@ -226,6 +227,25 @@ ruff/mypy/pytest all green; CI wired.
   with the DB up. Verified live via curl (`/products`, `/price-history`, 404). No new ADR
   (routes/serialization from ADR-0007 + openapi; freshness rule from docs/07).
 
-**Next: T1.7 — End-to-end REST slice** (M1 gate): wire `acquire-intel crawl demo_rest` →
-pipeline → Postgres → API serves it; prove a real/fixture-backed crawl produces observations the
-API returns with correct freshness (run the crawl; curl the API; show rows + response).
+- **T1.7 — End-to-end REST slice ✅ (M1 gate passed)** — the vertical slice runs end to end:
+  `acquire-intel crawl demo_rest` fetches paginated `products.json` → pipeline → Postgres → the
+  API serves it with freshness. New `pipeline/persistence.py` (`PersistencePipeline`, wired into
+  `ITEM_PIPELINES` at 400, after normalize) writes each `NormalizedItem` via the repositories in a
+  per-item transaction; the runner (`acquisition/runner.py`) now drives the **crawl-run ledger**
+  for persistable sources — loads the source's `base_url`/`default_currency` from the `sources`
+  registry, opens a `crawl_runs` row *before* the crawl (so the observation `run_id` FK resolves),
+  passes `run_id` + config into the spider, and closes the run with a terminal status
+  (`success`/`partial`/`failed`) + `items_ok`/`items_rejected` from Scrapy stats (recorded even on
+  crash). The no-op `demo` source has no `kind` → still DB-free (T0.4 preserved). **A persistable
+  source must be registered in `sources` first** (else exit 2, `crawl.unregistered_source`). New
+  E2E test (`test_e2e_rest.py`): a real CLI subprocess crawls a local fixture HTTP server →
+  asserts 2 products + observations persisted, run ledgered, and both API routes return the data
+  with freshness. Full suite **117 passed / 0 skipped** with the DB up; verified live (crawl logs
+  `success items_ok=2`; curl shows both routes). No new ADR (wiring follows ADR-0002/0003/0006/0010).
+
+**Phase 1 / M1 gate: DONE.** Crawl the REST source → observations persisted → API returns them
+with freshness; strict ruff/mypy/pytest green.
+
+**Next: Phase 2 (M2) — more techniques.** T2.1 — HTML extractor via Playwright
+(`scrapy-playwright`, JS-rendered fixture) under the same `SourceExtractor` contract, feeding the
+identical pipeline/storage. Then T2.2 GraphQL extractor, T2.3 three-kinds parity.

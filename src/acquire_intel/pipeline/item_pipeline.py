@@ -32,6 +32,16 @@ if TYPE_CHECKING:
 
 _log = get_logger("acquire_intel.pipeline.normalize")
 
+STAT_ITEMS_REJECTED = "acquire/items_rejected"
+STAT_ITEMS_DUPLICATE = "acquire/items_duplicate"
+
+
+def _inc_stat(spider: Spider, key: str) -> None:
+    """Bump a Scrapy stat if the crawler exposes one (a no-op in bare unit tests)."""
+    stats = getattr(getattr(spider, "crawler", None), "stats", None)
+    if stats is not None:
+        stats.inc_value(key)
+
 
 class NormalizePipeline:
     """Validate, normalize, and dedup extractor output before persistence."""
@@ -49,6 +59,7 @@ class NormalizePipeline:
     def process_item(self, item: object, spider: Spider) -> NormalizedItem:
         if not isinstance(item, RawProduct):
             self.items_rejected += 1
+            _inc_stat(spider, STAT_ITEMS_REJECTED)
             raise DropItem(f"not a RawProduct: {type(item).__name__}")
 
         try:
@@ -61,12 +72,14 @@ class NormalizePipeline:
             )
         except NormalizationError as exc:
             self.items_rejected += 1
+            _inc_stat(spider, STAT_ITEMS_REJECTED)
             _log.warning("pipeline.item_rejected", external_id=item.external_id, reason=str(exc))
             raise DropItem(str(exc)) from exc
 
         product_id = normalized.product.id
         if product_id in self._seen:
             self.items_duplicate += 1
+            _inc_stat(spider, STAT_ITEMS_DUPLICATE)
             _log.info("pipeline.item_deduped", product_id=product_id)
             raise DropItem(f"duplicate within run: {product_id}")
 

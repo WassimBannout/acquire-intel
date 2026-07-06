@@ -1,13 +1,20 @@
 """Crawl runner: CLI/scheduler entrypoint into the Scrapy engine.
 
-Generates a ``run_id``, binds it to the log context, resolves the source's spider
-via the registry, and runs a one-shot crawl — logging ``crawl.started`` /
-``crawl.finished`` with stats. Persisting the run to ``crawl_runs`` is T1.5.
+Generates a ``run_id``, binds it to the log context, resolves the source's spider via the
+registry, and runs a one-shot crawl — logging ``crawl.started`` / ``crawl.finished`` with stats.
+
+For a **persistable** source (a real ``SourceExtractor`` carrying a ``kind``) the runner also
+drives the crawl-run ledger (T1.5/T1.7): it loads the source's config from the ``sources``
+registry, opens a ``crawl_runs`` row (``running``) **before** the crawl so persisted
+observations' ``run_id`` FK resolves, passes ``run_id``/``base_url``/``default_currency`` into
+the spider, and closes the run with a terminal status + item counts afterward (even on error).
+The no-op ``demo`` spider has no ``kind`` and touches no DB (T0.4 semantics preserved).
 """
 
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from scrapy.crawler import CrawlerProcess
@@ -15,15 +22,23 @@ from scrapy.crawler import CrawlerProcess
 from acquire_intel.acquisition.registry import get_spider, known_sources
 from acquire_intel.acquisition.scrapy_settings import build_scrapy_settings
 from acquire_intel.monitoring.logging import bind_run, configure_logging, get_logger
+from acquire_intel.pipeline.item_pipeline import STAT_ITEMS_REJECTED
+from acquire_intel.pipeline.persistence import STAT_ITEMS_PERSISTED
+from acquire_intel.storage import CrawlRunRepository, SourceRepository, session_scope
 
 if TYPE_CHECKING:
     from scrapy.crawler import Crawler
+
+    from acquire_intel.contracts import RunStatus
+
+_DEFAULT_CURRENCY = "USD"
 
 
 def run_crawl(source_id: str) -> int:
     """Run a one-shot crawl for ``source_id``. Returns a process exit code.
 
-    ``0`` on a completed crawl; ``2`` if the source is not registered.
+    ``0`` on a completed crawl; ``2`` if the source is unknown or (for a persistable source)
+    not registered in the ``sources`` table.
     """
     configure_logging()
     run_id = uuid.uuid4().hex
@@ -35,15 +50,83 @@ def run_crawl(source_id: str) -> int:
             log.error("crawl.unknown_source", known_sources=known_sources())
             return 2
 
+        persistable = getattr(spider_cls, "kind", None) is not None
+        crawl_kwargs: dict[str, Any] = {}
+        if persistable:
+            source = _load_source(source_id)
+            if source is None:
+                log.error("crawl.unregistered_source", detail="no sources row; register it first")
+                return 2
+            crawl_kwargs = {
+                "run_id": run_id,
+                "base_url": source["base_url"],
+                "default_currency": source["default_currency"],
+            }
+            _open_run(run_id, source_id)
+
         log.info("crawl.started", spider=spider_cls.name)
         process = CrawlerProcess(settings=build_scrapy_settings(), install_root_handler=False)
         # Hold the Crawler reference: process.crawlers is emptied once start() returns.
         crawler = process.create_crawler(spider_cls)
-        process.crawl(crawler)
-        process.start()  # blocks until the crawl finishes and the reactor stops
+        process.crawl(crawler, **crawl_kwargs)
+        try:
+            process.start()  # blocks until the crawl finishes and the reactor stops
+        except Exception:
+            if persistable:
+                _close_run(run_id, status="failed", items_ok=0, items_rejected=0)
+            log.exception("crawl.crashed")
+            raise
 
-        log.info("crawl.finished", **_collect_stats(crawler))
+        stats = _collect_stats(crawler)
+        log.info("crawl.finished", **stats)
+        if persistable:
+            items_ok = int(stats["items_ok"])
+            items_rejected = int(stats["items_rejected"])
+            _close_run(
+                run_id,
+                status=_run_status(stats["finish_reason"], items_rejected),
+                items_ok=items_ok,
+                items_rejected=items_rejected,
+            )
         return 0
+
+
+def _load_source(source_id: str) -> dict[str, Any] | None:
+    """Read a source's crawl config from the registry, or ``None`` if unregistered."""
+    with session_scope() as session:
+        source = SourceRepository(session).get(source_id)
+        if source is None:
+            return None
+        policy = source.crawl_policy or {}
+        return {
+            "base_url": source.base_url,
+            "default_currency": policy.get("default_currency", _DEFAULT_CURRENCY),
+        }
+
+
+def _open_run(run_id: str, source_id: str) -> None:
+    with session_scope() as session:
+        CrawlRunRepository(session).open(
+            run_id=run_id, source_id=source_id, started_at=datetime.now(UTC)
+        )
+
+
+def _close_run(run_id: str, *, status: RunStatus, items_ok: int, items_rejected: int) -> None:
+    with session_scope() as session:
+        CrawlRunRepository(session).close(
+            run_id,
+            status=status,
+            items_ok=items_ok,
+            items_rejected=items_rejected,
+            finished_at=datetime.now(UTC),
+        )
+
+
+def _run_status(finish_reason: object, items_rejected: int) -> RunStatus:
+    """Map the Scrapy finish reason + reject count to a ledger status."""
+    if finish_reason != "finished":
+        return "failed"
+    return "partial" if items_rejected > 0 else "success"
 
 
 def _collect_stats(crawler: Crawler) -> dict[str, Any]:
@@ -51,6 +134,8 @@ def _collect_stats(crawler: Crawler) -> dict[str, Any]:
     stats = crawler.stats.get_stats() if crawler.stats is not None else {}
     return {
         "items": stats.get("item_scraped_count", 0),
+        "items_ok": stats.get(STAT_ITEMS_PERSISTED, 0),
+        "items_rejected": stats.get(STAT_ITEMS_REJECTED, 0),
         "requests": stats.get("downloader/request_count", 0),
         "finish_reason": stats.get("finish_reason"),
     }
