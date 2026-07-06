@@ -132,32 +132,33 @@ section of `CLAUDE.md`; those are the source of truth for task-level state.*
 
 ### Progress at a glance
 
-**How far along: 15 / 28 backlog tasks complete (~54%); 2 of 5 milestones gated, M2 underway.**
+**How far along: 16 / 28 backlog tasks complete (~57%); 3 of 5 milestones gated; M3 (the centerpiece) next.**
 
 ```
-Done  █████████████████████░░░░░░░░░░░░░░░░░░░  54%   (M0 ✅  M1 ✅  M2 🟡  M3 ⬜  M4 ⬜)
+Done  ██████████████████████░░░░░░░░░░░░░░░░░░  57%   (M0 ✅  M1 ✅  M2 ✅  M3 ⬜  M4 ⬜)
 ```
 
 | Phase | Tasks | Status | Delivers |
 |-------|:-----:|--------|----------|
 | **M0 — Foundation** | 6 / 6 | ✅ Gated | uv/Docker/Postgres, config boundary, Scrapy + Flask skeletons, CI, `/health` |
 | **M1 — First REST slice** | 7 / 7 | ✅ Gated | one command: crawl → validate → normalize → dedup → persist → serve, with freshness |
-| **M2 — More techniques** | 2 / 3 | 🟡 Underway | HTML (Playwright, T2.1) + GraphQL (T2.2) extractors done; three-kinds parity (T2.3) next — the M2 gate |
+| **M2 — More techniques** | 3 / 3 | ✅ Gated | all three kinds (REST/HTML/GraphQL) feed the identical pipeline + storage → canonical products |
 | **M3 — Resilience + harness** | 0 / 6 | ⬜ Not started | proxy/identity rotation, throttle/backoff, ban detection, adversarial harness — **the centerpiece** |
 | **M4 — Intelligence + hardening** | 0 / 6 | ⬜ Not started | deals/drift detection, dashboard, scheduler + admin crawl, metrics, demo/CI polish |
 
 The foundation and the first end-to-end REST slice are done and proven; a single command crawls a
-source through the full pipeline and the API serves it with freshness, and the second and third
-techniques — a Playwright-rendered **HTML** extractor and a **GraphQL** extractor — now land under
-the same contract (M2 underway). What remains is the three-kinds parity check (the M2 gate), the
-**anti-bot resilience layer (M3) — the largest and highest-value phase**, and the
-intelligence/hardening layer (M4). By task count ~54%;
+source through the full pipeline and the API serves it with freshness, and all three acquisition
+techniques — a paginated **REST** extractor, a Playwright-rendered **HTML** extractor, and a
+cursor-paginated **GraphQL** extractor — now land under the same contract, feeding one shared
+pipeline + storage (M2 gated). What remains is the **anti-bot resilience layer (M3) — the largest
+and highest-value phase**, and the intelligence/hardening layer (M4). By task count ~57%;
 **effort-weighted it is nearer the midpoint**, since M3 alone is the single biggest chunk of the
 remaining work and the core competency this project exists to demonstrate. Per-milestone,
 per-task, and per-FR detail follows.
 
-**Overall: M0 (Foundation) and M1 (first REST slice) complete and gated; M2 (more techniques)
-underway — the HTML (Playwright) and GraphQL extractors now land.** The platform boots, migrates, and answers
+**Overall: M0 (Foundation), M1 (first REST slice), and M2 (more techniques) complete and gated —
+all three acquisition kinds (REST/HTML/GraphQL) now feed one pipeline; M3 (the resilience
+centerpiece) is next.** The platform boots, migrates, and answers
 `/health`; the canonical data contracts exist and are parity-tested; and a single command,
 `acquire-intel crawl demo_rest`, drives the **whole slice**: the REST extractor fetches a
 paginated `products.json` → the Scrapy item pipeline validates → normalizes (Decimal money,
@@ -171,9 +172,11 @@ by an end-to-end test (a real CLI subprocess crawling a local fixture server →
 plus focused integration tests, all against Postgres. **M2 has since added the second and third
 techniques** — `demo_html`, a JS-rendered **HTML** source that `scrapy-playwright` renders and
 parses (T2.1), and `demo_graphql`, a **GraphQL** source that issues a typed query as a JSON `POST`
-and follows cursor pagination (T2.2) — both under the same `SourceExtractor` contract. What's next
-in M2: the three-kinds parity check (T2.3, the M2 gate) proving all three feed the identical
-pipeline/storage.
+and follows cursor pagination (T2.2) — both under the same `SourceExtractor` contract, and closed
+the milestone with a **three-kinds parity gate** (T2.3): a parameterized integration test drives
+all three fixture sets through the *one* shared normalize + persistence path into Postgres →
+identical canonical products, backed by a structural guard that the shared layers name no concrete
+source. **M2 gate passed.** Next is M3, the anti-bot resilience layer.
 
 ### Milestone progress
 
@@ -181,8 +184,8 @@ pipeline/storage.
 |-----------|-------|-------|
 | **M0 Foundation** | ✅ Complete | Gate passed: `docker compose up` + `uv run` boot; `/health` reflects DB; strict ruff/mypy/pytest green; CI wired. |
 | **M1 First vertical slice (REST)** | ✅ Complete | Gate passed: `acquire-intel crawl demo_rest` → observations in Postgres → API serves them with freshness (E2E test + live curl); strict ruff/mypy/pytest green. |
-| **M2 More techniques (HTML/GraphQL)** | 🟡 In progress | T2.1 HTML (Playwright) ✅ + T2.2 GraphQL ✅ done. Next: T2.3 three-kinds parity (M2 gate). |
-| **M3 Resilience + harness** | ⬜ Not started | The centerpiece; unbuilt. |
+| **M2 More techniques (HTML/GraphQL)** | ✅ Complete | Gate passed: REST/HTML/GraphQL all produce canonical products through one pipeline + storage (parameterized parity test + source-agnostic structural guard); strict ruff/mypy/pytest green. |
+| **M3 Resilience + harness** | ⬜ Not started | The centerpiece; unbuilt. Next up (T3.1 adversarial mock harness). |
 | **M4 Intelligence + hardening** | ⬜ Not started | — |
 
 ### M1 progress (REST slice)
@@ -203,7 +206,7 @@ pipeline/storage.
 |------|-------|-------|
 | T2.1 — HTML extractor (Playwright) | ✅ Done | `sources/demo_html.py`: `DemoHtmlExtractor` (`kind="html"`) renders a JS-built listing via `scrapy-playwright` (waits for `[data-product-id]`) and maps rendered HTML → `RawProduct`s with a pure, browser-independent parser over resilient `data-*` selectors; missing price/id → skipped, selector drift → yields nothing. `scrapy-playwright` added (ADR-0002); Playwright handlers wired globally-but-lazily so REST is unaffected. 12 tests incl. a real Chromium render smoke test; fixtures under `tests/fixtures/demo_html/`. |
 | T2.2 — GraphQL extractor | ✅ Done | `sources/demo_graphql.py`: `DemoGraphqlExtractor` (`kind="graphql"`) issues a typed `Products($first,$after)` operation as a JSON `POST` (`JsonRequest`) against a Storefront-style Relay connection and follows **cursor pagination** (`pageInfo.endCursor` in the next request's variables); nodes → `RawProduct`s (per-node `currencyCode` carried through); a GraphQL `errors`/block/wrong-shape response → nothing (stops paging), a null-price node → skipped. Query derived from public Storefront docs (documented in-module, ADR-0004). 13 tests; fixtures under `tests/fixtures/demo_graphql/`. |
-| T2.3 — Three-kinds parity | ⬜ Todo | One parameterized test: REST/HTML/GraphQL fixtures → canonical products through the identical pipeline. M2 gate. |
+| T2.3 — Three-kinds parity | ✅ Done | `tests/test_three_kinds_parity.py`: a parameterized integration test (`rest`/`html`/`graphql`) parses each fixture with its own extractor → `RawProduct`s, then drives all three through the **one** shared `normalize` → `ProductRepository.upsert` / `PriceObservationRepository.append` path into Postgres → identical canonical `{source}:{external_id}` products + immutable `Decimal`-money observations. Plus a structural guard that the shared pipeline/storage modules import nothing from `acquisition.sources` and name no concrete source. **M2 gate passed** (146 passed / 0 skipped, DB up). |
 
 ### What M0 delivered (T0.1–T0.6, all ✅)
 

@@ -111,7 +111,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 - **Acceptance:** paginates via cursors; parses nodes → RawProducts; malformed → rejected.
 - **Verify:** fixture tests. (FR-4, ADR-0004)
 
-### T2.3 — Three-kinds parity
+### [x] T2.3 — Three-kinds parity
 - **Goal:** confirm all three extractors feed the identical pipeline/storage with no
   source-specific code leaking into shared layers.
 - **Acceptance:** one pipeline test runs REST/HTML/GraphQL fixtures → canonical products.

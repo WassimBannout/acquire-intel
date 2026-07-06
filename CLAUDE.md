@@ -121,8 +121,9 @@ uv run python -m harness.server      # start the adversarial mock server
 
 ## Current status
 
-**Phase 0 & Phase 1 (M1) complete (merged to `main`); Phase 2 (M2) in progress — the HTML
-(Playwright) extractor lands (T2.1 ✅); GraphQL (T2.2) + three-kinds parity (T2.3) next.** The
+**Phase 0 & Phase 1 (M1) complete (merged to `main`); Phase 2 (M2) complete — all three
+acquisition kinds land: HTML/Playwright (T2.1 ✅), GraphQL (T2.2 ✅), three-kinds parity gate
+(T2.3 ✅). Next: Phase 3 (M3), the resilience centerpiece.** The
 first REST vertical slice runs end to end (crawl → pipeline → Postgres → API with freshness). The
 app is built
 **nested in this repo** (not a sibling `../acquire-intel-app`) — one coherent codebase, per the
@@ -284,6 +285,21 @@ with freshness; strict ruff/mypy/pytest green. Merged to `main` via PR #3.
   0 skipped** with the DB up. No new ADR (GraphQL ratified by ADR-0004; Spider-subclass + POST
   realization follows the REST precedent).
 
-**Next: T2.3 — three-kinds parity** (the M2 gate): one parameterized integration test proving
-REST/HTML/GraphQL fixtures all feed the identical pipeline + storage → canonical products, with
-no source-specific logic leaking into shared layers.
+- **T2.3 — Three-kinds parity ✅ (M2 gate passed)** — `tests/test_three_kinds_parity.py` proves the
+  headline M2 claim two ways. (1) A **parameterized integration test** (`ids=[rest, html,
+  graphql]`) parses each source's checked-in fixture with its *own* extractor → `RawProduct`s, then
+  drives them through the **one** shared path (`normalize` → `ProductRepository.upsert` /
+  `PriceObservationRepository.append`) into Postgres; the ingest function is identical for every
+  kind, per-source config the only variable. It asserts each kind yields canonical
+  `{source}:{external_id}` products + one immutable observation apiece with `Decimal` money + a
+  3-letter ISO currency — identical canonical shape regardless of technique. (2) A **fast
+  structural guard** (`test_shared_layers_are_source_agnostic`, no DB) asserts the shared
+  pipeline/storage modules (`normalize.py`, `item_pipeline.py`, `persistence.py`,
+  `repositories.py`) import nothing from `acquisition.sources` and name no concrete source — so no
+  per-kind branch can hide in a shared layer. Full suite **146 passed / 0 skipped** with the DB up;
+  ruff/mypy clean. No new ADR (verification task; source-agnostic shared layers are the design per
+  ADR-0003).
+
+**Phase 2 / M2 gate: DONE.** All three acquisition kinds (REST/HTML/GraphQL) produce canonical
+products from fixtures through one pipeline + storage; strict ruff/mypy/pytest green. **Next: Phase
+3 (M3) — the resilience centerpiece**, starting T3.1 (adversarial mock harness).
