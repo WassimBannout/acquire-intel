@@ -121,10 +121,11 @@ uv run python -m harness.server      # start the adversarial mock server
 
 ## Current status
 
-**Phase 0 complete; starting Phase 1.** The app is built **nested in this repo** (not a sibling
-`../acquire-intel-app`) — one coherent codebase, per the vision. App scaffold lives at the
-repo root: `pyproject.toml` (uv), `src/acquire_intel/` with the eight concern-modules,
-`tests/`. Python 3.12 pinned via `.python-version`.
+**Phase 0 & Phase 1 (M1) complete — first REST vertical slice runs end to end (crawl → pipeline
+→ Postgres → API with freshness). Next: Phase 2 (M2), more techniques.** The app is built
+**nested in this repo** (not a sibling `../acquire-intel-app`) — one coherent codebase, per the
+vision. App scaffold lives at the repo root: `pyproject.toml` (uv), `src/acquire_intel/` with
+the eight concern-modules, `tests/`. Python 3.12 pinned via `.python-version`.
 
 - **T0.1 — Scaffold uv project ✅** (`uv sync`, ruff, mypy strict, `acquire-intel` CLI stub,
   CLI smoke tests all green).
@@ -150,5 +151,101 @@ repo root: `pyproject.toml` (uv), `src/acquire_intel/` with the eight concern-mo
   service container. Verified locally against the full command sequence (19 passed).
 
 **Phase 0 gate: DONE.** `docker compose up` + `uv run` boot; `/health` reflects DB; strict
-ruff/mypy/pytest all green; CI wired. **Next: Phase 1 (M1) — first vertical slice: REST**,
-starting at **T1.1 — SourceExtractor contract + RawProduct** (ADR-0003, ADR-0008).
+ruff/mypy/pytest all green; CI wired.
+
+### Phase 1 — First vertical slice: REST (M1)
+
+- **T1.1 — SourceExtractor contract + RawProduct ✅** — `acquisition/extractor.py` defines the
+  `RawProduct` pydantic model (required `external_id`/`title`(min-len 1)/`url`/`raw_price`
+  string|number; nullable `currency`/`in_stock`/`brand`/`image_url`; open `extra`;
+  `extra="forbid"` so junk/block payloads can't construct — ADR-0008) and the
+  `runtime_checkable` `SourceExtractor` Protocol (`id`, `kind: html|rest|graphql`,
+  `stale_after`, `start_requests`, `parse`). Parity test asserts the model never diverges from
+  `specs/data-contracts/raw-product.schema.json`; valid-accepted / invalid-rejected +
+  protocol-conformance tests green (18 new, full suite 34 passed / 3 Postgres-skipped). No new
+  ADR (contract already set by ADR-0003/0008).
+
+- **T1.2 — Canonical models + contract parity ✅** — `contracts.py` (top-level) defines the
+  canonical pydantic models: `Money` (Decimal + ISO-4217 currency, serialized as a **string**,
+  never a float), `Product` (projection with optional nested `Money`), `PriceObservation`
+  (append-only, flat amount+currency), `CrawlRun` (status enum, item counts, array of typed
+  `BanEvent`s, timings), `BanEvent` (kind/action enums). Shared `UtcDatetime` type rejects
+  naive datetimes and normalizes to UTC. Parity tests assert every model matches its
+  `specs/data-contracts/` JSON Schema (property/required/closed/serialized-types/date-time
+  formats via a validation-vs-serialization schema comparison); money/UTC/enum invariant tests
+  green (24 new, full suite 58 passed / 3 Postgres-skipped). No new ADR (contract already set by
+  ADR-0008/docs/03).
+
+- **T1.3 — REST extractor ✅** — `acquisition/sources/demo_rest.py` defines `DemoRestExtractor`,
+  the first concrete `SourceExtractor` (`kind="rest"`): a `scrapy.Spider` subclass (following the
+  `NoOpSpider` registry precedent) that also satisfies the protocol, with `async start()`
+  bridging to `start_requests()`. Fetches a paginated Shopify-style `products.json`
+  (`?page=N` until an empty page), maps each product → `RawProduct`, and **never emits garbage**:
+  a malformed/blocked/non-JSON/wrong-shape page yields nothing (and stops paging), and any item
+  missing a required field (e.g. no price) is skipped, not fabricated (ADR-0008). Registered as
+  `demo_rest`. Fixtures under `tests/fixtures/demo_rest/` (valid payload w/ one bad item +
+  expected output + malformed); 12 fixture tests green (full suite 70 passed / 3
+  Postgres-skipped). No new ADR (Spider-subclass realization implied by ADR-0002/0003 + the
+  registry precedent; demo shape is a fixture detail).
+
+- **T1.4 — Pipeline: validate → normalize → dedup ✅** — `pipeline/normalize.py` (pure,
+  Scrapy-independent) maps `RawProduct` → canonical `Product` + `PriceObservation`
+  (`NormalizedItem` bundle): canonical id `{source}:{external_id}`, `raw_price` → non-negative
+  finite `Decimal`, currency resolved item→source-`default_currency`→reject (never guessed),
+  whitespace-collapsed titles, UTC capture stamp. `pipeline/item_pipeline.py`
+  (`NormalizePipeline`, wired into `ITEM_PIPELINES`) is the Scrapy adapter: rejects non-
+  `RawProduct`/unmappable items (`DropItem`, counted), dedups within a run by canonical id
+  (keep-first), tracks `items_ok`/`items_rejected`/`items_duplicate`. `demo_rest` gained a
+  `default_currency` ("USD"). **New: ADR-0010** (normalization + in-run dedup policy). 31 new
+  tests (pure fns + pipeline adapter + demo_rest fixture round-trip); full suite 101 passed / 3
+  Postgres-skipped.
+
+- **T1.5 — Persistence + crawl-run ledger ✅** — `storage/repositories.py` adds three
+  repositories over the ORM (taking canonical pydantic contracts, mapping to ORM):
+  `ProductRepository.upsert` (Postgres `INSERT … ON CONFLICT (id) DO UPDATE`, refreshing
+  descriptive fields + `GREATEST(last_seen_at)`, preserving `first_seen_at`);
+  `PriceObservationRepository.append`/`list_for`/`count_for` (**append-only** — no update/delete);
+  `CrawlRunRepository.open`/`close`/`get` (running → terminal status + item counts). Integration
+  test (live Postgres, port 5544) proves a re-run appends a 2nd immutable observation and
+  upserts (not duplicates) the product with `first_seen_at` preserved / `last_seen_at` advanced,
+  and both runs are recorded; money round-trips as `Decimal`. Full suite **107 passed / 0
+  skipped** with the DB up. No new ADR (schema/append-only/projection from ADR-0006/docs/03).
+
+- **T1.6 — GET /products + /products/:id/price-history ✅** — two Flask read routes
+  (`api/products.py`, blueprint on the config base path) per `specs/openapi.yaml`. `GET /products`
+  (`source`/`q`/`limit` 1-100 default 24) and `GET /products/{id}/price-history` (`window` ∈
+  30d/90d/180d/365d/all, default 90d). Responses serialized through camelCase API models
+  (`api/serializers.py`, distinct from the snake_case canonical `contracts`) so `Money.amount` is
+  a **string**, every response carries freshness (`dataAsOf` + `stale`, where `stale` = data
+  older than the source's `stale_after_seconds`, docs/07), and each observation carries
+  `capturedAt` + `sourceId`. `latestPrice`/`inStock` are derived from the newest observation at
+  query time (`PriceObservationRepository.latest_for_many`, Postgres `DISTINCT ON`), never stored
+  on the projection (docs/03 §2.2). Unknown product → 404 problem+json. New read methods:
+  `ProductRepository.list`, `PriceObservationRepository.list_for(since=…)`/`latest_for_many`,
+  `SourceRepository.stale_after_for`. 9 Flask-test-client integration tests (shape/freshness/
+  latest-price/filter+search/stale/empty/window/404/400); full suite **116 passed / 0 skipped**
+  with the DB up. Verified live via curl (`/products`, `/price-history`, 404). No new ADR
+  (routes/serialization from ADR-0007 + openapi; freshness rule from docs/07).
+
+- **T1.7 — End-to-end REST slice ✅ (M1 gate passed)** — the vertical slice runs end to end:
+  `acquire-intel crawl demo_rest` fetches paginated `products.json` → pipeline → Postgres → the
+  API serves it with freshness. New `pipeline/persistence.py` (`PersistencePipeline`, wired into
+  `ITEM_PIPELINES` at 400, after normalize) writes each `NormalizedItem` via the repositories in a
+  per-item transaction; the runner (`acquisition/runner.py`) now drives the **crawl-run ledger**
+  for persistable sources — loads the source's `base_url`/`default_currency` from the `sources`
+  registry, opens a `crawl_runs` row *before* the crawl (so the observation `run_id` FK resolves),
+  passes `run_id` + config into the spider, and closes the run with a terminal status
+  (`success`/`partial`/`failed`) + `items_ok`/`items_rejected` from Scrapy stats (recorded even on
+  crash). The no-op `demo` source has no `kind` → still DB-free (T0.4 preserved). **A persistable
+  source must be registered in `sources` first** (else exit 2, `crawl.unregistered_source`). New
+  E2E test (`test_e2e_rest.py`): a real CLI subprocess crawls a local fixture HTTP server →
+  asserts 2 products + observations persisted, run ledgered, and both API routes return the data
+  with freshness. Full suite **117 passed / 0 skipped** with the DB up; verified live (crawl logs
+  `success items_ok=2`; curl shows both routes). No new ADR (wiring follows ADR-0002/0003/0006/0010).
+
+**Phase 1 / M1 gate: DONE.** Crawl the REST source → observations persisted → API returns them
+with freshness; strict ruff/mypy/pytest green.
+
+**Next: Phase 2 (M2) — more techniques.** T2.1 — HTML extractor via Playwright
+(`scrapy-playwright`, JS-rendered fixture) under the same `SourceExtractor` contract, feeding the
+identical pipeline/storage. Then T2.2 GraphQL extractor, T2.3 three-kinds parity.

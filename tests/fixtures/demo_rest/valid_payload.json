@@ -1,0 +1,31 @@
+{
+  "products": [
+    {
+      "id": 7001,
+      "title": "Trail Runner 2000",
+      "handle": "trail-runner-2000",
+      "vendor": "Acme",
+      "variants": [
+        { "id": 1, "price": "129.95", "available": true },
+        { "id": 2, "price": "129.95", "available": false }
+      ],
+      "images": [{ "src": "https://cdn.example.com/img/trail-runner.jpg" }]
+    },
+    {
+      "id": 7002,
+      "title": "Summit Jacket",
+      "handle": "summit-jacket",
+      "vendor": "Northface Clone",
+      "variants": [{ "id": 3, "price": "89.00", "available": false }],
+      "images": []
+    },
+    {
+      "id": 7003,
+      "title": "Broken Product (no price)",
+      "handle": "broken",
+      "vendor": "Acme",
+      "variants": [],
+      "images": []
+    }
+  ]
+}

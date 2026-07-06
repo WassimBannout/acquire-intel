@@ -25,6 +25,11 @@ def build_scrapy_settings() -> Settings:
             "AUTOTHROTTLE_ENABLED": cfg.autothrottle_enabled,
             "TELNETCONSOLE_ENABLED": False,
             "LOG_LEVEL": "INFO",
+            # Validate → normalize → dedup, then persist every surviving item (T1.4 → T1.7).
+            "ITEM_PIPELINES": {
+                "acquire_intel.pipeline.item_pipeline.NormalizePipeline": 300,
+                "acquire_intel.pipeline.persistence.PersistencePipeline": 400,
+            },
         },
         priority="project",
     )

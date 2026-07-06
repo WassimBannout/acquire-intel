@@ -1,0 +1,24 @@
+[
+  {
+    "external_id": "7001",
+    "title": "Trail Runner 2000",
+    "url": "https://shop.example.com/products/trail-runner-2000",
+    "raw_price": "129.95",
+    "currency": null,
+    "in_stock": true,
+    "brand": "Acme",
+    "image_url": "https://cdn.example.com/img/trail-runner.jpg",
+    "extra": { "handle": "trail-runner-2000" }
+  },
+  {
+    "external_id": "7002",
+    "title": "Summit Jacket",
+    "url": "https://shop.example.com/products/summit-jacket",
+    "raw_price": "89.00",
+    "currency": null,
+    "in_stock": false,
+    "brand": "Northface Clone",
+    "image_url": null,
+    "extra": { "handle": "summit-jacket" }
+  }
+]

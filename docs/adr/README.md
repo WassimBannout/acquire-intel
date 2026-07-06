@@ -15,6 +15,7 @@ contradict them. Add one for any non-obvious, hard-to-reverse choice using
 | [0007](0007-flask-api-scheduler.md) | Flask API + Jinja/Chart.js + APScheduler | Accepted |
 | [0008](0008-pydantic-validation-boundaries.md) | pydantic validation at every boundary | Accepted |
 | [0009](0009-adversarial-test-harness.md) | Local adversarial mock server for anti-bot tests | Accepted |
+| [0010](0010-normalization-and-dedup-policy.md) | Normalization (currency fallback, Decimal price) + in-run dedup | Accepted |
 
 ## Next likely ADRs (write when decided)
 - Concrete v1 sources per technique (+ ToS review).

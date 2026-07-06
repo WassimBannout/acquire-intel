@@ -130,20 +130,66 @@ Priority: P0 launch-blocking, P1 important, P2 nice-to-have. IDs map to `plan/ba
 *Snapshot as of 2026-07-06. Kept in sync with `plan/backlog.md` and the "Current status"
 section of `CLAUDE.md`; those are the source of truth for task-level state.*
 
-**Overall: M0 (Foundation) complete and gated; M1 (first REST slice) about to begin.** The
-platform is scaffolded end-to-end — it boots, migrates, and answers `/health` — but no
-acquisition technique yet collects real data, so most functional requirements are still
-foundation-only.
+### Progress at a glance
+
+**How far along: 13 / 28 backlog tasks complete (~46%); 2 of 5 milestones built and gated.**
+
+```
+Done  ██████████████████░░░░░░░░░░░░░░░░░░░░░░  46%   (M0 ✅  M1 ✅  M2 ⬜  M3 ⬜  M4 ⬜)
+```
+
+| Phase | Tasks | Status | Delivers |
+|-------|:-----:|--------|----------|
+| **M0 — Foundation** | 6 / 6 | ✅ Gated | uv/Docker/Postgres, config boundary, Scrapy + Flask skeletons, CI, `/health` |
+| **M1 — First REST slice** | 7 / 7 | ✅ Gated | one command: crawl → validate → normalize → dedup → persist → serve, with freshness |
+| **M2 — More techniques** | 0 / 3 | ⬜ Next | HTML (Playwright) + GraphQL extractors on the same `SourceExtractor` contract |
+| **M3 — Resilience + harness** | 0 / 6 | ⬜ Not started | proxy/identity rotation, throttle/backoff, ban detection, adversarial harness — **the centerpiece** |
+| **M4 — Intelligence + hardening** | 0 / 6 | ⬜ Not started | deals/drift detection, dashboard, scheduler + admin crawl, metrics, demo/CI polish |
+
+The foundation and the first end-to-end REST slice are done and proven; a single command crawls a
+source through the full pipeline and the API serves it with freshness. What remains is the two
+other acquisition techniques (M2), the **anti-bot resilience layer (M3) — the largest and
+highest-value phase**, and the intelligence/hardening layer (M4). By raw task count that is ~46%;
+**effort-weighted it is nearer the midpoint**, since M3 alone is the single biggest chunk of the
+remaining work and the core competency this project exists to demonstrate. Per-milestone,
+per-task, and per-FR detail follows.
+
+**Overall: M0 (Foundation) and M1 (first REST slice) complete and gated — the first vertical
+slice runs end to end. Next: M2 (more techniques).** The platform boots, migrates, and answers
+`/health`; the canonical data contracts exist and are parity-tested; and a single command,
+`acquire-intel crawl demo_rest`, now drives the **whole slice**: the REST extractor fetches a
+paginated `products.json` → the Scrapy item pipeline validates → normalizes (Decimal money,
+canonical id, UTC capture) → dedups (rejecting/counting anything unmappable) → the persistence
+pipeline upserts the `products` projection and appends immutable `price_observations`, with the
+runner opening/closing a `crawl_runs` ledger row (terminal status + item counts) around it → the
+**read API serves that data over HTTP** — `GET /products` and `GET /products/{id}/price-history`,
+each carrying freshness (`dataAsOf` + `stale`) and per-point `capturedAt`/`sourceId`, with
+`Money.amount` as a string and a 404 problem+json for unknown products. The whole path is proven
+by an end-to-end test (a real CLI subprocess crawling a local fixture server → Postgres → API)
+plus focused integration tests, all against Postgres. What's next is M2: HTML (Playwright) and
+GraphQL extractors under the same contract, feeding the identical pipeline/storage.
 
 ### Milestone progress
 
 | Milestone | State | Notes |
 |-----------|-------|-------|
 | **M0 Foundation** | ✅ Complete | Gate passed: `docker compose up` + `uv run` boot; `/health` reflects DB; strict ruff/mypy/pytest green; CI wired. |
-| **M1 First vertical slice (REST)** | ⏳ Not started | Next up: T1.1 — `SourceExtractor` contract + `RawProduct`. |
-| **M2 More techniques (HTML/GraphQL)** | ⬜ Not started | — |
+| **M1 First vertical slice (REST)** | ✅ Complete | Gate passed: `acquire-intel crawl demo_rest` → observations in Postgres → API serves them with freshness (E2E test + live curl); strict ruff/mypy/pytest green. |
+| **M2 More techniques (HTML/GraphQL)** | ⬜ Not started | Next up: T2.1 HTML (Playwright) → T2.2 GraphQL → T2.3 three-kinds parity. |
 | **M3 Resilience + harness** | ⬜ Not started | The centerpiece; unbuilt. |
 | **M4 Intelligence + hardening** | ⬜ Not started | — |
+
+### M1 progress (REST slice)
+
+| Task | State | Notes |
+|------|-------|-------|
+| T1.1 — SourceExtractor contract + RawProduct | ✅ Done | `acquisition/extractor.py`: `RawProduct` pydantic model (`extra="forbid"`) + `runtime_checkable` `SourceExtractor` Protocol; parity-tested vs `raw-product.schema.json`. |
+| T1.2 — Canonical models + contract parity | ✅ Done | `contracts.py`: `Money`(Decimal+currency, string-serialized), `Product`, `PriceObservation`, `CrawlRun`, `BanEvent`; UTC-normalizing datetime; parity + money/UTC/enum invariant tests green. |
+| T1.3 — REST extractor | ✅ Done | `sources/demo_rest.py`: `DemoRestExtractor` (`kind="rest"`) walks a paginated Shopify-style `products.json` → `RawProduct`s; malformed/blocked page → nothing; fixtures + 12 tests green. |
+| T1.4 — Pipeline: validate → normalize → dedup | ✅ Done | `pipeline/normalize.py` + `NormalizePipeline`: `RawProduct` → `Product` + `PriceObservation` (Decimal money, canonical id, currency fallback, UTC capture); in-run dedup keep-first; invalid rejected + counted. ADR-0010. |
+| T1.5 — Persistence + crawl-run ledger | ✅ Done | `storage/repositories.py`: `products` upsert (ON CONFLICT, preserve `first_seen_at`), append-only `price_observations`, `crawl_runs` open/close. Postgres integration test proves re-run appends + upserts + records the run. |
+| T1.6 — GET /products + /price-history | ✅ Done | `api/products.py` + camelCase `api/serializers.py`: both routes per `specs/openapi.yaml` with `dataAsOf`+`stale` freshness, per-point `capturedAt`/`sourceId`, `Money.amount` as string, `latestPrice`/`inStock` derived from newest observation (`DISTINCT ON`), `window` filter, 404 problem+json; 9 Flask test-client tests, verified live via curl. |
+| T1.7 — End-to-end REST slice | ✅ Done | `pipeline/persistence.py` (`PersistencePipeline` @400) + `acquisition/runner.py` crawl-run ledger: `acquire-intel crawl demo_rest` reads source config from the `sources` registry, opens/closes a `crawl_runs` row (status + counts, even on crash), persists products + observations, and the API serves them with freshness. E2E test (real CLI subprocess → fixture server → Postgres → API) + live curl. **M1 gate passed.** |
 
 ### What M0 delivered (T0.1–T0.6, all ✅)
 
@@ -165,25 +211,26 @@ foundation-only.
 
 | FR | Status | Where it stands |
 |----|--------|-----------------|
-| FR-1 (Scrapy engine) | 🟡 Scaffolded | No-op spider + CLI wiring exist; per-source config/crawl behavior pending M1. |
-| FR-2 (REST extractor) | 🔴 Not started | First task of M1 (T1.1–T1.3). |
+| FR-1 (Scrapy engine) | 🟡 Substantial | Scrapy drives a real one-shot crawl end-to-end (scheduler, downloader, item pipelines, pagination); per-source config (`base_url`/currency) comes from the `sources` registry and the crawl-run ledger is opened/closed around it (T1.7). Shared resilience middlewares (throttle/backoff/rotation) are M3. |
+| FR-2 (REST extractor) | ✅ Done (REST) | `demo_rest` (`kind="rest"`, T1.3) walks a paginated Shopify-style `products.json` → `RawProduct`s and is now wired through the full pipeline → persistence → API, proven by the E2E gate against a fixture server (T1.7). Additional real REST sources are additive on the same contract. |
 | FR-3 (HTML/Playwright) | 🔴 Not started | M2. |
 | FR-4 (GraphQL extractor) | 🔴 Not started | M2. |
 | FR-5 (resilience layer) | 🔴 Not started | M3 centerpiece. |
 | FR-6 (ban detection) | 🔴 Not started | M3. |
-| FR-7 (boundary validation) | 🟡 Scaffolded | Config boundary validated; extractor/response validation lands with the models in M1. |
-| FR-8 (normalize + dedup pipeline) | 🔴 Not started | M1 (T1.4). |
+| FR-7 (boundary validation) | ✅ Done | Config + extractor output validated via `RawProduct` (`extra="forbid"`, T1.1); the pipeline re-asserts the boundary and rejects+counts unmappable items, never persisting garbage (T1.4) — now exercised in a live crawl (T1.7). Deeper data-quality gates (volume/range/continuity) are FR-9/M3. |
+| FR-8 (normalize + dedup pipeline) | ✅ Done | Scrapy item pipeline normalizes `RawProduct` → `Product` + `PriceObservation` (Decimal money, canonical id, currency fallback) and dedups within a run, rejecting/counting invalid (T1.2/T1.4, ADR-0010); its output is persisted by `PersistencePipeline` and proven end-to-end (T1.7). |
 | FR-9 (data-quality gates) | 🔴 Not started | M3. |
-| FR-10 (crawl-run ledger) | 🟡 Scaffolded | `crawl_runs`/`ban_events` tables + `run_id` logging exist; population + health derivation pending M1/M4. |
+| FR-10 (crawl-run ledger) | ✅ Done | The runner opens a `crawl_runs` row before the crawl and closes it with a terminal status (`success`/`partial`/`failed`) + `items_ok`/`items_rejected` from Scrapy stats, even on crash (T1.5/T1.7). Ban-event recording and health/freshness derivation over the ledger are M3/M4. |
 | FR-11 (adversarial harness) | 🔴 Not started | M3. |
-| FR-12 (price-history time-series) | 🟡 Scaffolded | `price_observations` schema exists (append-only); write/query paths pending M1. |
-| FR-13 (Flask API) | 🟡 Scaffolded | App factory + `/health` only; product/history/deals routes pending M1/M4. |
+| FR-12 (price-history time-series) | ✅ Done | Append-only `price_observations` is populated by a live crawl (T1.7), proven immutable across re-runs (T1.5), and served over HTTP as `GET /products/{id}/price-history` with freshness + windowing (T1.6) — the full capture→serve path is exercised end-to-end. |
+| FR-13 (Flask API) | 🟡 Substantial | App factory + `/health` (M0) plus the two read routes `GET /products` and `GET /products/{id}/price-history` (T1.6) — spec-conformant camelCase, freshness envelope, 404 problem+json, response shapes validated vs pydantic models. `/deals`, `/admin/crawl`, `/health/sources` routes pending M4. |
 | FR-14 (dashboard) | 🔴 Not started | M4. |
 | FR-15 (scheduler + admin trigger) | 🔴 Not started | M4. |
 | FR-16 (drift detection) | 🔴 Not started | M4. |
 | FR-17 (deal detection) | 🔴 Not started | M4. |
 
-**Legend:** ✅ done · 🟡 scaffolded (foundation in place, behavior not yet delivered) ·
+**Legend:** ✅ done · 🟡 scaffolded/substantial (foundation or partial behavior in place, not
+yet delivered end-to-end) ·
 🔴 not started · ⬜ milestone not started · ⏳ next up.
 
 ## 9. Open questions (resolve as ADRs)

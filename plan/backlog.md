@@ -52,44 +52,44 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 
 ## Phase 1 — First vertical slice: REST (M1)
 
-### T1.1 — SourceExtractor contract + RawProduct
+### [x] T1.1 — SourceExtractor contract + RawProduct
 - **Goal:** `SourceExtractor` protocol + `RawProduct` pydantic model in `acquisition/`;
   parity test vs `specs/data-contracts/raw-product.schema.json`.
 - **Acceptance:** valid accepted, invalid rejected; parity passes.
 - **Verify:** unit + parity tests. (ADR-0003, ADR-0008)
 
-### T1.2 — Canonical models + contract parity
+### [x] T1.2 — Canonical models + contract parity
 - **Goal:** pydantic `Product`, `PriceObservation`, `Money(Decimal+currency)`, `CrawlRun`,
   `BanEvent`; parity tests vs `specs/data-contracts/`.
 - **Acceptance:** money is Decimal+currency (no float); parity passes.
 - **Verify:** unit + parity tests. (docs/03, ADR-0008)
 
-### T1.3 — REST extractor
+### [x] T1.3 — REST extractor
 - **Goal:** a REST `SourceExtractor` (paginated JSON) with rate-limit-aware requests;
   fixtures: valid payload + expected `RawProduct`s + a malformed payload.
 - **Acceptance:** valid fixture → correct RawProducts; malformed → yields nothing (no junk).
 - **Verify:** fixture tests. (FR-2, ADR-0004)
 
-### T1.4 — Pipeline: validate → normalize → dedup
+### [x] T1.4 — Pipeline: validate → normalize → dedup
 - **Goal:** Scrapy item pipeline: pydantic-validate RawProduct → normalize to Product +
   PriceObservation (Decimal money, canonical id, UTC captured_at) → dedup within a run.
 - **Acceptance:** normalization correct on fixtures; invalid item rejected + counted; dups
   collapsed.
 - **Verify:** unit tests. (FR-7, FR-8, docs/03 §3)
 
-### T1.5 — Persistence + crawl-run ledger
+### [x] T1.5 — Persistence + crawl-run ledger
 - **Goal:** repositories: upsert `products`, append `price_observations`; open/close
   `crawl_runs` (status, items_ok/rejected).
 - **Acceptance:** re-running appends observations (immutable) + upserts product; run recorded.
 - **Verify:** integration test against Postgres. (FR-10, FR-12, ADR-0006)
 
-### T1.6 — GET /products + /products/:id/price-history
+### [x] T1.6 — GET /products + /products/:id/price-history
 - **Goal:** Flask routes per `specs/openapi.yaml`, with `dataAsOf` + per-point `capturedAt` +
   `sourceId`; 404 for unknown product; validate response shape.
 - **Acceptance:** spec-conformant; freshness present; 404 path works.
 - **Verify:** Flask test-client integration tests. (FR-13)
 
-### T1.7 — End-to-end REST slice
+### [x] T1.7 — End-to-end REST slice
 - **Goal:** `acquire-intel crawl <rest_source>` → data lands in Postgres → API serves it.
 - **Acceptance:** a real (friendly) or fixture-backed crawl produces observations returned by
   the API with correct freshness.

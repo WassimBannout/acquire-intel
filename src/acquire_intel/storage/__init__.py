@@ -13,14 +13,22 @@ from acquire_intel.storage.models import (
     Product,
     Source,
 )
-from acquire_intel.storage.repositories import SourceRepository
+from acquire_intel.storage.repositories import (
+    CrawlRunRepository,
+    PriceObservationRepository,
+    ProductRepository,
+    SourceRepository,
+)
 
 __all__ = [
     "BanEvent",
     "Base",
     "CrawlRun",
+    "CrawlRunRepository",
     "PriceObservation",
+    "PriceObservationRepository",
     "Product",
+    "ProductRepository",
     "Source",
     "SourceRepository",
     "get_engine",
