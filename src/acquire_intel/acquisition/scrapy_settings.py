@@ -25,6 +25,16 @@ def build_scrapy_settings() -> Settings:
             "AUTOTHROTTLE_ENABLED": cfg.autothrottle_enabled,
             "TELNETCONSOLE_ENABLED": False,
             "LOG_LEVEL": "INFO",
+            # Playwright for JS-rendered `html` sources (ADR-0002). The handler delegates
+            # non-`playwright` requests to the default downloader, so REST/GraphQL are
+            # unaffected and no browser launches unless a request opts in via meta.
+            "TWISTED_REACTOR": "twisted.internet.asyncioreactor.AsyncioSelectorReactor",
+            "DOWNLOAD_HANDLERS": {
+                "http": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
+                "https": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
+            },
+            "PLAYWRIGHT_BROWSER_TYPE": "chromium",
+            "PLAYWRIGHT_LAUNCH_OPTIONS": {"headless": True},
             # Validate → normalize → dedup, then persist every surviving item (T1.4 → T1.7).
             "ITEM_PIPELINES": {
                 "acquire_intel.pipeline.item_pipeline.NormalizePipeline": 300,

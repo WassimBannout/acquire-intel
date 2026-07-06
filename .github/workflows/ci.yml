@@ -44,6 +44,9 @@ jobs:
       - name: Install dependencies (locked)
         run: uv sync --locked
 
+      - name: Install Playwright browser (for the HTML render test)
+        run: uv run playwright install --with-deps chromium
+
       - name: Ruff lint
         run: uv run ruff check .
 

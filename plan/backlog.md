@@ -99,7 +99,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 
 ## Phase 2 — More techniques (M2)
 
-### T2.1 — HTML extractor (Playwright)
+### [x] T2.1 — HTML extractor (Playwright)
 - **Goal:** an HTML `SourceExtractor` using `scrapy-playwright` for a JS-rendered page;
   fixtures (rendered HTML snapshot + expected output; a drifted snapshot).
 - **Acceptance:** parses rendered fixture → RawProducts; drifted fixture → rejected.

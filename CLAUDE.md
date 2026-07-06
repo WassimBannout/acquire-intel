@@ -121,8 +121,10 @@ uv run python -m harness.server      # start the adversarial mock server
 
 ## Current status
 
-**Phase 0 & Phase 1 (M1) complete — first REST vertical slice runs end to end (crawl → pipeline
-→ Postgres → API with freshness). Next: Phase 2 (M2), more techniques.** The app is built
+**Phase 0 & Phase 1 (M1) complete (merged to `main`); Phase 2 (M2) in progress — the HTML
+(Playwright) extractor lands (T2.1 ✅); GraphQL (T2.2) + three-kinds parity (T2.3) next.** The
+first REST vertical slice runs end to end (crawl → pipeline → Postgres → API with freshness). The
+app is built
 **nested in this repo** (not a sibling `../acquire-intel-app`) — one coherent codebase, per the
 vision. App scaffold lives at the repo root: `pyproject.toml` (uv), `src/acquire_intel/` with
 the eight concern-modules, `tests/`. Python 3.12 pinned via `.python-version`.
@@ -244,8 +246,26 @@ ruff/mypy/pytest all green; CI wired.
   `success items_ok=2`; curl shows both routes). No new ADR (wiring follows ADR-0002/0003/0006/0010).
 
 **Phase 1 / M1 gate: DONE.** Crawl the REST source → observations persisted → API returns them
-with freshness; strict ruff/mypy/pytest green.
+with freshness; strict ruff/mypy/pytest green. Merged to `main` via PR #3.
 
-**Next: Phase 2 (M2) — more techniques.** T2.1 — HTML extractor via Playwright
-(`scrapy-playwright`, JS-rendered fixture) under the same `SourceExtractor` contract, feeding the
-identical pipeline/storage. Then T2.2 GraphQL extractor, T2.3 three-kinds parity.
+### Phase 2 — More techniques (M2)
+
+- **T2.1 — HTML extractor (Playwright) ✅** — `acquisition/sources/demo_html.py` adds
+  `DemoHtmlExtractor` (`kind="html"`), the second concrete `SourceExtractor`: a `scrapy.Spider`
+  whose listing request is **Playwright-marked** (`meta={"playwright": True, …
+  PageMethod("wait_for_selector", "[data-product-id]")}`) so JS-rendered pages hydrate before
+  parse. The HTML→`RawProduct` map is a **pure function** (`parse_products`) over rendered HTML
+  using resilient `data-*` selectors, so it's fixture-tested without a browser; missing price/id
+  → card skipped (never fabricated), and **selector drift** (renamed hooks) → yields nothing
+  (ADR-0008, contract rule 3). `scrapy-playwright` added (ratified by ADR-0002); Scrapy settings
+  enable the Playwright download handlers + asyncio reactor **globally but lazily** — the handler
+  delegates non-`playwright` requests to the default downloader, so REST/GraphQL are unaffected
+  and no browser launches unless a request opts in (verified: REST E2E still green). Registered as
+  `demo_html`. Fixtures under `tests/fixtures/demo_html/` (rendered snapshot + expected + drifted +
+  a client-rendered `js_page.html`); 12 tests incl. a **real Chromium render** smoke test (marked
+  `playwright`, skips if the browser is absent; CI installs Chromium). Full suite **129 passed /
+  0 skipped** locally. No new ADR (Playwright ratified by ADR-0002).
+
+**Next: T2.2 — GraphQL extractor** (`kind="graphql"`): typed query construction + variables +
+cursor pagination, nodes → `RawProduct`s; fixtures (response + expected + malformed → rejected).
+Then T2.3 three-kinds parity (the M2 gate).
