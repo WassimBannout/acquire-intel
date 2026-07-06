@@ -199,6 +199,17 @@ ruff/mypy/pytest all green; CI wired.
   tests (pure fns + pipeline adapter + demo_rest fixture round-trip); full suite 101 passed / 3
   Postgres-skipped.
 
-**Next: T1.5 — Persistence + crawl-run ledger** (repositories: upsert `products`, append
-immutable `price_observations`; open/close `crawl_runs` with status + items_ok/rejected;
-integration test against Postgres; ADR-0006, docs/03 §2).
+- **T1.5 — Persistence + crawl-run ledger ✅** — `storage/repositories.py` adds three
+  repositories over the ORM (taking canonical pydantic contracts, mapping to ORM):
+  `ProductRepository.upsert` (Postgres `INSERT … ON CONFLICT (id) DO UPDATE`, refreshing
+  descriptive fields + `GREATEST(last_seen_at)`, preserving `first_seen_at`);
+  `PriceObservationRepository.append`/`list_for`/`count_for` (**append-only** — no update/delete);
+  `CrawlRunRepository.open`/`close`/`get` (running → terminal status + item counts). Integration
+  test (live Postgres, port 5544) proves a re-run appends a 2nd immutable observation and
+  upserts (not duplicates) the product with `first_seen_at` preserved / `last_seen_at` advanced,
+  and both runs are recorded; money round-trips as `Decimal`. Full suite **107 passed / 0
+  skipped** with the DB up. No new ADR (schema/append-only/projection from ADR-0006/docs/03).
+
+**Next: T1.6 — GET /products + /products/:id/price-history** (Flask routes per
+`specs/openapi.yaml`: `dataAsOf` + per-point `capturedAt`/`sourceId`; 404 for unknown product;
+response shape validated against the pydantic models; FR-13).

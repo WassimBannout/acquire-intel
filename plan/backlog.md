@@ -77,7 +77,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
   collapsed.
 - **Verify:** unit tests. (FR-7, FR-8, docs/03 §3)
 
-### T1.5 — Persistence + crawl-run ledger
+### [x] T1.5 — Persistence + crawl-run ledger
 - **Goal:** repositories: upsert `products`, append `price_observations`; open/close
   `crawl_runs` (status, items_ok/rejected).
 - **Acceptance:** re-running appends observations (immutable) + upserts product; run recorded.
