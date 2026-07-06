@@ -105,7 +105,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 - **Acceptance:** parses rendered fixture → RawProducts; drifted fixture → rejected.
 - **Verify:** fixture tests; a real Playwright render smoke test. (FR-3, ADR-0002)
 
-### T2.2 — GraphQL extractor
+### [x] T2.2 — GraphQL extractor
 - **Goal:** a GraphQL `SourceExtractor`: typed query construction, variables, cursor
   pagination; fixtures (GraphQL response + expected; malformed).
 - **Acceptance:** paginates via cursors; parses nodes → RawProducts; malformed → rejected.

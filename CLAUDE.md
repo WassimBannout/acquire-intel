@@ -266,6 +266,24 @@ with freshness; strict ruff/mypy/pytest green. Merged to `main` via PR #3.
   `playwright`, skips if the browser is absent; CI installs Chromium). Full suite **129 passed /
   0 skipped** locally. No new ADR (Playwright ratified by ADR-0002).
 
-**Next: T2.2 — GraphQL extractor** (`kind="graphql"`): typed query construction + variables +
-cursor pagination, nodes → `RawProduct`s; fixtures (response + expected + malformed → rejected).
-Then T2.3 three-kinds parity (the M2 gate).
+- **T2.2 — GraphQL extractor ✅** — `acquisition/sources/demo_graphql.py` adds
+  `DemoGraphqlExtractor` (`kind="graphql"`), the third concrete `SourceExtractor`: a
+  `scrapy.Spider` that issues a **typed** GraphQL operation (`query Products($first: Int!, $after:
+  String)`) as a JSON `POST` (`scrapy.http.JsonRequest`) against a Shopify Storefront-style Relay
+  connection, and follows **cursor pagination** via `pageInfo { hasNextPage endCursor }` (each
+  follow-up carries the `after` cursor in its variables, kept inside the Scrapy engine so the
+  shared resilience layer stays in force). The query shape is derived from the public Storefront
+  API docs (documented in the module docstring per ADR-0004's follow-up), checked in and
+  fixture-tested. Nodes → `RawProduct` (per-node `currencyCode` carried through, unlike REST's
+  shop-level currency); robustness contract holds — a GraphQL `errors` payload / block page /
+  non-JSON / wrong shape yields **nothing** and stops paging, and a node with a null
+  `minVariantPrice` is skipped, never fabricated (ADR-0008). Registered as `demo_graphql`.
+  Fixtures under `tests/fixtures/demo_graphql/` (page-1 with one price-less node + expected + a
+  final page + a `errors` malformed response); 13 tests (protocol/identity/typed-POST/mapping/
+  per-node-currency/cursor-follow/last-page-stop/4× rejection/registry). Full suite **142 passed /
+  0 skipped** with the DB up. No new ADR (GraphQL ratified by ADR-0004; Spider-subclass + POST
+  realization follows the REST precedent).
+
+**Next: T2.3 — three-kinds parity** (the M2 gate): one parameterized integration test proving
+REST/HTML/GraphQL fixtures all feed the identical pipeline + storage → canonical products, with
+no source-specific logic leaking into shared layers.

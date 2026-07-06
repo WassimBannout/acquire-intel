@@ -1,0 +1,49 @@
+{
+  "data": {
+    "products": {
+      "edges": [
+        {
+          "cursor": "eyJsYXN0X2lkIjo4MDAxfQ==",
+          "node": {
+            "id": "gid://shopify/Product/8001",
+            "title": "Aurora Desk Lamp",
+            "handle": "aurora-desk-lamp",
+            "vendor": "Lumen",
+            "availableForSale": true,
+            "featuredImage": { "url": "https://cdn.example.com/img/aurora-lamp.jpg" },
+            "priceRange": {
+              "minVariantPrice": { "amount": "59.90", "currencyCode": "EUR" }
+            }
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo4MDAyfQ==",
+          "node": {
+            "id": "gid://shopify/Product/8002",
+            "title": "Nimbus Office Chair",
+            "handle": "nimbus-office-chair",
+            "vendor": "SitWell",
+            "availableForSale": false,
+            "featuredImage": null,
+            "priceRange": {
+              "minVariantPrice": { "amount": "249.00", "currencyCode": "EUR" }
+            }
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo4MDAzfQ==",
+          "node": {
+            "id": "gid://shopify/Product/8003",
+            "title": "Ghost Product (no price)",
+            "handle": "ghost-product",
+            "vendor": "Phantom",
+            "availableForSale": true,
+            "featuredImage": null,
+            "priceRange": { "minVariantPrice": null }
+          }
+        }
+      ],
+      "pageInfo": { "hasNextPage": true, "endCursor": "eyJsYXN0X2lkIjo4MDAzfQ==" }
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "data": {
+    "products": {
+      "edges": [
+        {
+          "cursor": "eyJsYXN0X2lkIjo4MDA0fQ==",
+          "node": {
+            "id": "gid://shopify/Product/8004",
+            "title": "Halcyon Bookshelf",
+            "handle": "halcyon-bookshelf",
+            "vendor": "Timber",
+            "availableForSale": true,
+            "featuredImage": { "url": "https://cdn.example.com/img/halcyon.jpg" },
+            "priceRange": {
+              "minVariantPrice": { "amount": "179.00", "currencyCode": "EUR" }
+            }
+          }
+        }
+      ],
+      "pageInfo": { "hasNextPage": false, "endCursor": "eyJsYXN0X2lkIjo4MDA0fQ==" }
+    }
+  }
+}
