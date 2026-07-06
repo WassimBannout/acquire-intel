@@ -68,6 +68,9 @@ known-first-party = ["acquire_intel"]
 # SQLAlchemy resolves Mapped[...] annotations at runtime (PEP 563 + declarative),
 # so datetime/Decimal/Any must stay importable at runtime — not TYPE_CHECKING-only.
 "src/acquire_intel/storage/models.py" = ["TC001", "TC002", "TC003"]
+# pydantic resolves model field annotations at runtime (get_type_hints), so the
+# RawProduct field types must stay importable at runtime — not TYPE_CHECKING-only.
+"src/acquire_intel/acquisition/extractor.py" = ["TC001", "TC002", "TC003"]
 # Alembic-generated migrations: leave their import layout as emitted.
 "src/acquire_intel/storage/migrations/versions/*" = ["I001", "TC001", "TC002", "TC003"]
 

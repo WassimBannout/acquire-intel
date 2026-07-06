@@ -52,7 +52,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 
 ## Phase 1 — First vertical slice: REST (M1)
 
-### T1.1 — SourceExtractor contract + RawProduct
+### [x] T1.1 — SourceExtractor contract + RawProduct
 - **Goal:** `SourceExtractor` protocol + `RawProduct` pydantic model in `acquisition/`;
   parity test vs `specs/data-contracts/raw-product.schema.json`.
 - **Acceptance:** valid accepted, invalid rejected; parity passes.

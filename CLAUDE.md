@@ -121,10 +121,10 @@ uv run python -m harness.server      # start the adversarial mock server
 
 ## Current status
 
-**Phase 0 complete; starting Phase 1.** The app is built **nested in this repo** (not a sibling
-`../acquire-intel-app`) — one coherent codebase, per the vision. App scaffold lives at the
-repo root: `pyproject.toml` (uv), `src/acquire_intel/` with the eight concern-modules,
-`tests/`. Python 3.12 pinned via `.python-version`.
+**Phase 0 complete; Phase 1 (M1) in progress — first vertical slice: REST.** The app is built
+**nested in this repo** (not a sibling `../acquire-intel-app`) — one coherent codebase, per the
+vision. App scaffold lives at the repo root: `pyproject.toml` (uv), `src/acquire_intel/` with
+the eight concern-modules, `tests/`. Python 3.12 pinned via `.python-version`.
 
 - **T0.1 — Scaffold uv project ✅** (`uv sync`, ruff, mypy strict, `acquire-intel` CLI stub,
   CLI smoke tests all green).
@@ -150,5 +150,19 @@ repo root: `pyproject.toml` (uv), `src/acquire_intel/` with the eight concern-mo
   service container. Verified locally against the full command sequence (19 passed).
 
 **Phase 0 gate: DONE.** `docker compose up` + `uv run` boot; `/health` reflects DB; strict
-ruff/mypy/pytest all green; CI wired. **Next: Phase 1 (M1) — first vertical slice: REST**,
-starting at **T1.1 — SourceExtractor contract + RawProduct** (ADR-0003, ADR-0008).
+ruff/mypy/pytest all green; CI wired.
+
+### Phase 1 — First vertical slice: REST (M1)
+
+- **T1.1 — SourceExtractor contract + RawProduct ✅** — `acquisition/extractor.py` defines the
+  `RawProduct` pydantic model (required `external_id`/`title`(min-len 1)/`url`/`raw_price`
+  string|number; nullable `currency`/`in_stock`/`brand`/`image_url`; open `extra`;
+  `extra="forbid"` so junk/block payloads can't construct — ADR-0008) and the
+  `runtime_checkable` `SourceExtractor` Protocol (`id`, `kind: html|rest|graphql`,
+  `stale_after`, `start_requests`, `parse`). Parity test asserts the model never diverges from
+  `specs/data-contracts/raw-product.schema.json`; valid-accepted / invalid-rejected +
+  protocol-conformance tests green (18 new, full suite 34 passed / 3 Postgres-skipped). No new
+  ADR (contract already set by ADR-0003/0008).
+
+**Next: T1.2 — Canonical models + contract parity** (`Product`, `PriceObservation`,
+`Money(Decimal+currency)`, `CrawlRun`, `BanEvent`; docs/03, ADR-0008).
