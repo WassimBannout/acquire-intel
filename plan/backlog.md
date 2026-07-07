@@ -121,40 +121,40 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 
 ## Phase 3 — Resilience: the centerpiece (M3)
 
-### T3.1 — Adversarial mock harness
+### [x] T3.1 — Adversarial mock harness
 - **Goal:** `harness/` server with configurable scenarios: happy, 429+Retry-After,
   403-after-N-per-identity, CAPTCHA/challenge, cookie-wall, soft-ban (200+empty), drift.
 - **Acceptance:** each scenario is selectable and deterministic; documented.
 - **Verify:** harness self-tests. (FR-11, ADR-0009)
 
-### T3.2 — Ban/anti-bot classifier
+### [x] T3.2 — Ban/anti-bot classifier
 - **Goal:** classify responses (ok/rate_limited/blocked/captcha/empty) via status + body
   markers + size + redirects; emit `BanEvent`; blocked never passes downstream.
 - **Acceptance:** deterministic classification on fixtures + harness; blocked response never
   reaches an extractor.
 - **Verify:** unit + harness tests. (FR-6, docs/04 §2.5)
 
-### T3.3 — Throttle, backoff, circuit-breaker
+### [x] T3.3 — Throttle, backoff, circuit-breaker
 - **Goal:** AutoThrottle + per-domain caps; exponential backoff+jitter honoring Retry-After;
   bounded retries; per-domain circuit breaker.
 - **Acceptance:** against harness 429, backoff observed then success; repeated blocks trip the
   breaker (cool-down).
 - **Verify:** harness tests; unit tests for backoff math/jitter bounds. (FR-5)
 
-### T3.4 — Proxy manager + identity rotation
+### [x] T3.4 — Proxy manager + identity rotation
 - **Goal:** proxy pool manager (health/cooldown, zero-proxy ok); coherent identity bundles
   (UA/headers/cookies/fingerprint) rotating on ban/session.
 - **Acceptance:** against harness 403-after-N, identity/proxy rotates → success; rotations
   recorded; identity bundles stay coherent.
 - **Verify:** harness tests. (FR-5, docs/04 §2.1–2.2)
 
-### T3.5 — Data-quality gates
+### [x] T3.5 — Data-quality gates
 - **Goal:** pipeline gates: shape (pydantic), range (price/plausibility), volume (±X% vs prior
   run), continuity (per-product jump) → quarantine/flag, never silent-store.
 - **Acceptance:** anomalous volume/range quarantined + recorded; nothing garbage stored.
 - **Verify:** unit + integration tests. (FR-9, docs/04 §3)
 
-### T3.6 — Resilience integration (M3 gate)
+### [x] T3.6 — Resilience integration (M3 gate)
 - **Goal:** full crawl against the harness across all scenarios.
 - **Acceptance:** all scenarios green; `ban_events` recorded with correct kinds/actions;
   **0 rows** in `price_observations` originate from a blocked/invalid response.

@@ -22,9 +22,34 @@ def build_scrapy_settings() -> Settings:
             "USER_AGENT": cfg.contact_user_agent,
             "ROBOTSTXT_OBEY": cfg.robotstxt_obey,
             "DOWNLOAD_DELAY": cfg.default_download_delay,
-            "AUTOTHROTTLE_ENABLED": cfg.autothrottle_enabled,
             "TELNETCONSOLE_ENABLED": False,
             "LOG_LEVEL": "INFO",
+            # Adaptive throttling + per-domain caps (T3.3, docs/04 §2.3): politeness is the
+            # first-line anti-ban tool — crawl slowly and concurrently within limits.
+            "AUTOTHROTTLE_ENABLED": cfg.autothrottle_enabled,
+            "AUTOTHROTTLE_START_DELAY": cfg.default_download_delay,
+            "AUTOTHROTTLE_MAX_DELAY": cfg.autothrottle_max_delay,
+            "AUTOTHROTTLE_TARGET_CONCURRENCY": cfg.autothrottle_target_concurrency,
+            "CONCURRENT_REQUESTS_PER_DOMAIN": cfg.concurrent_requests_per_domain,
+            # BackoffRetryMiddleware owns 429/503 (Retry-After-aware) — drop them from the
+            # built-in retrier so there is a single backoff owner (T3.3, docs/04 §2.4).
+            "RETRY_HTTP_CODES": [500, 502, 504, 522, 524, 408],
+            # Resilience knobs read by our middlewares' ``from_crawler``.
+            "ACQUIRE_BACKOFF_MAX_RETRIES": cfg.backoff_max_retries,
+            "ACQUIRE_BACKOFF_BASE_DELAY": cfg.backoff_base_delay,
+            "ACQUIRE_BACKOFF_MAX_DELAY": cfg.backoff_max_delay,
+            "ACQUIRE_CIRCUIT_FAILURE_THRESHOLD": cfg.circuit_failure_threshold,
+            "ACQUIRE_CIRCUIT_COOLDOWN_SECONDS": cfg.circuit_cooldown_seconds,
+            # Proxy pool + identity rotation (T3.4, docs/04 §2.1-2.2). Empty pool = direct.
+            "ACQUIRE_PROXY_POOL": cfg.proxy_urls,
+            "ACQUIRE_PROXY_COOLDOWN_SECONDS": cfg.proxy_cooldown_seconds,
+            "ACQUIRE_ROTATION_MAX_ATTEMPTS": cfg.rotation_max_attempts,
+            # Data-quality gates (T3.5, docs/04 §3, ADR-0012). Prices carried as strings → Decimal.
+            "ACQUIRE_QUALITY_PRICE_MIN": str(cfg.quality_price_min),
+            "ACQUIRE_QUALITY_PRICE_MAX": str(cfg.quality_price_max),
+            "ACQUIRE_QUALITY_MAX_JUMP_RATIO": cfg.quality_max_jump_ratio,
+            "ACQUIRE_QUALITY_VOLUME_TOLERANCE": cfg.quality_volume_tolerance,
+            "ACQUIRE_QUALITY_VOLUME_MIN_BASELINE": cfg.quality_volume_min_baseline,
             # Playwright for JS-rendered `html` sources (ADR-0002). The handler delegates
             # non-`playwright` requests to the default downloader, so REST/GraphQL are
             # unaffected and no browser launches unless a request opts in via meta.
@@ -35,9 +60,22 @@ def build_scrapy_settings() -> Settings:
             },
             "PLAYWRIGHT_BROWSER_TYPE": "chromium",
             "PLAYWRIGHT_LAUNCH_OPTIONS": {"headless": True},
-            # Validate → normalize → dedup, then persist every surviving item (T1.4 → T1.7).
+            # Resilience downloader middlewares (T3.2/T3.3/T3.4, docs/04 sec 2.1-2.5). All sit below
+            # HttpCompression (590) / Redirect (600) so they see the final, decompressed body.
+            # process_response runs high-to-low: backoff (recover 429/503) -> circuit (record
+            # blocks) -> rotation (escalate identity + retry on a persistent block) -> ban gate
+            # (record + drop). Only survivors of all four reach a spider.
+            "DOWNLOADER_MIDDLEWARES": {
+                "acquire_intel.resilience.middleware.BackoffRetryMiddleware": 585,
+                "acquire_intel.resilience.middleware.CircuitBreakerMiddleware": 583,
+                "acquire_intel.resilience.middleware.IdentityRotationMiddleware": 582,
+                "acquire_intel.resilience.middleware.BanDetectionMiddleware": 581,
+            },
+            # Validate → normalize → dedup (300) → per-item quality gates (350) → buffer +
+            # volume-gate + persist at close (400) (T1.4 → T1.7 → T3.5, ADR-0012).
             "ITEM_PIPELINES": {
                 "acquire_intel.pipeline.item_pipeline.NormalizePipeline": 300,
+                "acquire_intel.pipeline.quality.QualityGatePipeline": 350,
                 "acquire_intel.pipeline.persistence.PersistencePipeline": 400,
             },
         },

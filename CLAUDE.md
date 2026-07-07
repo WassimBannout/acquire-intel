@@ -86,7 +86,7 @@ uv run scrapy crawl <spider>         # run one spider
 uv run acquire-intel crawl <source>  # CLI wrapper (on-demand crawl)
 uv run flask --app acquire_intel.api run   # API + dashboard
 uv run pytest                        # unit + integration + harness tests
-uv run ruff check . && uv run mypy src     # lint + typecheck
+uv run ruff check . && uv run mypy src harness   # lint + typecheck
 docker compose up -d                 # Postgres for local dev (DB_HOST_PORT overrides host port)
 uv run alembic upgrade head          # apply DB migrations
 uv run python -m harness.server      # start the adversarial mock server
@@ -121,9 +121,11 @@ uv run python -m harness.server      # start the adversarial mock server
 
 ## Current status
 
-**Phase 0 & Phase 1 (M1) complete (merged to `main`); Phase 2 (M2) complete — all three
-acquisition kinds land: HTML/Playwright (T2.1 ✅), GraphQL (T2.2 ✅), three-kinds parity gate
-(T2.3 ✅). Next: Phase 3 (M3), the resilience centerpiece.** The
+**Phase 0, Phase 1 (M1) & Phase 2 (M2) complete (all merged to `main`); Phase 3 (M3) — the
+resilience centerpiece — COMPLETE (gate passed), pending PR: adversarial mock harness (T3.1 ✅),
+ban classifier (T3.2 ✅), throttle/backoff/circuit-breaker (T3.3 ✅), proxy + identity rotation
+(T3.4 ✅), data-quality gates (T3.5 ✅), and full-scenario resilience integration (T3.6 ✅) all
+land. Next: Phase 4 (M4) — intelligence + hardening.** All three acquisition kinds (REST/HTML/GraphQL) feed one pipeline, and the
 first REST vertical slice runs end to end (crawl → pipeline → Postgres → API with freshness). The
 app is built
 **nested in this repo** (not a sibling `../acquire-intel-app`) — one coherent codebase, per the
@@ -301,5 +303,124 @@ with freshness; strict ruff/mypy/pytest green. Merged to `main` via PR #3.
   ADR-0003).
 
 **Phase 2 / M2 gate: DONE.** All three acquisition kinds (REST/HTML/GraphQL) produce canonical
-products from fixtures through one pipeline + storage; strict ruff/mypy/pytest green. **Next: Phase
-3 (M3) — the resilience centerpiece**, starting T3.1 (adversarial mock harness).
+products from fixtures through one pipeline + storage; strict ruff/mypy/pytest green. Merged to
+`main` via PR #4.
+
+### Phase 3 — Resilience: the centerpiece (M3)
+
+- **T3.1 — Adversarial mock harness ✅** — `harness/` (a new top-level dev/test package, **not**
+  shipped in the wheel) is a self-contained Flask mock server the resilience layer is proven
+  against (ADR-0009, docs/04 §4, docs/06 §4). Scenarios are selected by URL path
+  (`GET /<scenario>/products.json`): `happy` (200 + parseable `products.json`-shaped data,
+  paginated), `rate_limited` (429 + `Retry-After` for a per-identity burst, then 200),
+  `block_after_n` (200 up to a per-identity budget, then 403 — a **fresh identity resets it**),
+  `captcha` (200 challenge page, not data), `cookie_wall` (403 + `Set-Cookie` until the session
+  cookie is carried back), `soft_ban` (200 + empty body), `drift` (200, envelope intact but item
+  fields renamed → unmappable). All behaviour is **deterministic**: count-based scenarios key
+  state on the caller's identity (`X-Harness-Identity` → `User-Agent` → remote addr), and
+  `POST /__admin__/reset` clears counters so a test starts from a known state. `HarnessConfig`
+  makes thresholds overridable. Run via `uv run python -m harness.server` (documented in
+  `harness/README.md`). Wiring: pytest `pythonpath=["."]` so `harness` imports in tests; CI +
+  `mypy src harness` now type-check it; `harness` added to ruff isort first-party. 12 self-tests +
+  verified live (curl: 429→429→200; 200×3→403; soft-ban 200 empty). Full suite **158 passed / 0
+  skipped** with the DB up. No new ADR (harness ratified by ADR-0009; scenario conventions
+  documented in-module + README).
+
+- **T3.2 — Ban/anti-bot classifier ✅** — the "never cache garbage" gate (ADR-0005, docs/04 §2.5).
+  `resilience/classifier.py` is a **pure** `classify(status, body) -> Classification`
+  (`ok|rate_limited|blocked|captcha|empty`): CAPTCHA/JS-challenge body markers win over status (a
+  challenge served as 200 *or* 403 → `captcha`), `429` → `rate_limited`, other non-2xx → `blocked`,
+  a 2xx with an **empty** body → `empty` (a silent soft-ban — distinct from a legitimate empty JSON
+  array, which has a non-empty body → `ok`). `resilience/middleware.py` (`BanDetectionMiddleware`,
+  wired into `DOWNLOADER_MIDDLEWARES` @585 — below HttpCompression/Redirect so it sees the final
+  decompressed body) classifies every response: `ok` passes through; a ban is recorded (Scrapy
+  stats `acquire/ban_events` + `acquire/ban/{kind}`, a structured log, and a `BanEvent` appended to
+  the spider's `ban_events` sink for the T3.6 ledger) and **dropped via `IgnoreRequest`** so the
+  extractor never sees it. Robots.txt fetches (`meta.dont_obey_robotstxt`) are never gated.
+  Detection + gating only; the recorded `action_taken` (backoff/rotate) is policy that T3.3/T3.4
+  execute. Proven: 19 classifier tests incl. all **7 harness scenarios** classified as expected +
+  6 middleware gating tests; **verified in the real Scrapy engine** against the harness (captcha →
+  0 items scraped, 1 ban recorded; happy → 3 items, 0 bans). Full suite **183 passed / 0 skipped**;
+  E2E happy-path crawl unaffected. No new ADR (classifier-as-middleware ratified by ADR-0005).
+
+- **T3.3 — Throttle, backoff, circuit-breaker ✅** (ADR-0005, docs/04 §2.3–2.4). **Throttle**:
+  AutoThrottle + per-domain caps (`CONCURRENT_REQUESTS_PER_DOMAIN`, `AUTOTHROTTLE_*`) from config.
+  **Backoff**: `resilience/backoff.py` is pure full-jitter exponential (`compute_delay`, seeded-RNG
+  testable) honouring `Retry-After` as a floor; `BackoffRetryMiddleware` (@585, above the ban gate)
+  retries **429/503** with a real `await asyncio.sleep` (the retry *decision* is a pure `plan_retry`
+  so it's testable without sleeping), bounded by `max_retries` — once exhausted the response falls
+  through to the ban gate. 429/503 are removed from Scrapy's built-in `RETRY_HTTP_CODES` so this is
+  the single Retry-After-aware owner. **Circuit breaker**: `resilience/circuit.py` is a pure
+  per-domain state machine (closed→open at a failure threshold, open refuses during a cool-down,
+  half-open probe closes on success / re-opens on failure; injectable clock); `CircuitBreakerMiddleware`
+  (@583) counts `blocked/captcha/empty` per domain (not rate-limits — backoff's job) and
+  short-circuits requests to an open domain via `IgnoreRequest`. Middleware order (process_response
+  high→low): backoff 585 → circuit 583 → ban 581. New config knobs + `ACQUIRE_*` Scrapy settings.
+  Proven: 43 tests (backoff maths, circuit FSM, both middlewares incl. the real harness rate-limit
+  sequence) + **verified in the real Scrapy engine** (rate_limited → 3 items, 2 backoff retries, 0
+  bans). Full suite **213 passed / 0 skipped**; E2E happy path unaffected. No new ADR (ratified by
+  ADR-0005).
+
+- **T3.4 — Proxy manager + identity rotation ✅** (ADR-0011, docs/04 §2.1–2.2, docs/08).
+  **Proxy pool**: `resilience/proxy.py` is a pure, clock-injectable `ProxyPool` — round-robin over
+  healthy proxies with per-proxy success/failure tallies; a banned proxy is quarantined for a
+  cool-down and skipped until it elapses; a **zero-proxy pool = direct connection** (right for
+  local runs + the harness), and if every proxy is cooling down it degrades to direct rather than
+  fail the crawl. Proxies come only from config/env (`PROXY_URLS`), never hardcoded. **Identity**:
+  `resilience/identity.py` models a *coherent* bundle (`BrowserProfile`: UA + the header profile /
+  client hints / viewport / locale that browser genuinely sends — a mismatched bundle is itself a
+  bot signal) and a deterministic `IdentityPool` that rotates the **whole** bundle at once with a
+  fresh per-identity cookie jar (a rotated identity never carries the abandoned one's cookies).
+  **Wiring**: `IdentityRotationMiddleware` (@582, between the circuit breaker @583 and the ban gate
+  @581) is **respectful by default** — keeps the honest contact `USER_AGENT` and stamps no browser
+  identity until a source actively blocks us (only attaches a pool proxy). On a *persistent* block
+  (`blocked`/`captcha`/`empty`) it **escalates** — swaps to a coherent browser identity + fresh
+  proxy and retries rather than letting the ban gate drop it (the harness keys its budget on the
+  identity, so a fresh one resets it); a `blocked`+`Set-Cookie` **cookie wall** is instead retried
+  with the *same* identity so `CookiesMiddleware` replays the session cookie; `rate_limited` never
+  rotates (backoff owns it). Both recoveries are bounded per request (`ROTATION_MAX_ATTEMPTS`), then
+  fall through to the ban gate. Proven: 18 tests incl. the **real harness** `block_after_n` (rotate
+  → data served) and `cookie_wall` (replay cookie) sequences + proxy health/quarantine FSM. Full
+  suite **231 passed / 0 skipped** with the DB up; ruff + mypy clean; E2E happy path unaffected.
+  **New: ADR-0011** (proxy pool + coherent identity rotation, escalate-on-block).
+
+- **T3.5 — Data-quality gates ✅** (ADR-0012, docs/04 §3, docs/03 §3). The FR-9 "never silently
+  store garbage" gates, on top of shape validation (`RawProduct`/`normalize`, ADR-0008/0010).
+  `pipeline/quality.py` is **pure** (`check_range`, `check_continuity`, `check_volume` +
+  `GateThresholds.from_settings` + a `QualityIssue` StrEnum). **Per-item gates** (range =
+  plausible price band; continuity = a product's price may not jump more than `max_jump_ratio`
+  vs. its last committed price) run in `QualityGatePipeline` (@350, between normalize @300 and
+  persistence @400): a failing item is **dropped + counted** (`items_rejected` +
+  `acquire/quality/{issue}`), never persisted — priors are preloaded once per source at
+  `open_spider`. The **run-level volume gate** can only honour "quarantined, *not committed*"
+  (append-only store has no delete) by deferring the write, so `PersistencePipeline` is now
+  **run-atomic**: it **buffers** survivors and at `close_spider` compares the count to the
+  source's recent committed baseline (`CrawlRunRepository.baseline_count`); within tolerance →
+  flush all, else → **commit nothing** and record the anomaly. A quarantined run is a first-class
+  ledger status (`RunStatus` gained `quarantined`, no migration — a string column; the runner
+  maps the stat → `status="quarantined"`, `items_ok=0`). Config knobs +
+  `ACQUIRE_QUALITY_*` Scrapy settings. Proven: 20 tests (13 pure boundary tests + 7 pipeline,
+  incl. a **real-Postgres** proof that a volume-anomalous run stores **zero** rows and is flagged
+  `quarantined`). Full suite **251 passed / 0 skipped** with the DB up; ruff + mypy clean; E2E
+  happy path unaffected. **New: ADR-0012**.
+
+- **T3.6 — Resilience integration ✅ (M3 gate passed)** (docs/06 §4, docs/03 §2.4). The
+  milestone-closing proof that the whole stack works end-to-end against the adversarial harness.
+  **Ban ledger wired**: a new `BanEventRepository` persists the run's detected `BanEvent`s to the
+  `ban_events` table; the runner passes a shared `ban_events` sink to the spider (the
+  `BanDetectionMiddleware` fills it — no middleware→storage coupling) and, on close, records the
+  rows + the count on the `crawl_runs` ledger. **Integration test** (`test_resilience_integration.py`,
+  the harness in a thread, a real `acquire-intel crawl` subprocess per scenario into Postgres):
+  `happy` / `rate_limited` (backoff) / `block_after_n` (identity rotation, `block_after=1`) each
+  recover the **full catalogue** (3 observations); `captcha` / `soft_ban` persist **0** observations
+  and land a `ban_events` row with the right kind (`captcha` / `empty`) and action (`rotate_identity`);
+  every ban scenario proves the "**0 rows in `price_observations` from a blocked/invalid response**"
+  invariant, and the ledger's `ban_events` count matches the audit rows. `cookie_wall`/`drift`
+  recovery stay covered at the unit level (`test_rotation_middleware`, extractor drift fixtures).
+  Full suite **256 passed / 0 skipped** with the DB up; ruff + mypy clean. No new ADR (integration
+  task; ban-event persistence follows ADR-0006 + docs/03 §2.4).
+
+**Phase 3 / M3 gate: DONE.** The resilience layer recovers from rate-limits/blocks/soft-bans,
+records the ban audit trail, and never persists a blocked/invalid/quarantined response — proven
+end-to-end against the harness. Pending PR to `main`. **Next: Phase 4 (M4) — intelligence +
+hardening** (price history/deals, dashboard, scheduler + admin trigger, metrics, change detection).

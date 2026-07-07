@@ -8,7 +8,7 @@
   "properties": {
     "id": { "type": "string" },
     "source_id": { "type": "string" },
-    "status": { "type": "string", "enum": ["running", "success", "partial", "failed"] },
+    "status": { "type": "string", "enum": ["running", "success", "partial", "failed", "quarantined"] },
     "items_ok": { "type": "integer", "minimum": 0 },
     "items_rejected": { "type": "integer", "minimum": 0 },
     "ban_events": {
