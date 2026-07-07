@@ -122,9 +122,10 @@ uv run python -m harness.server      # start the adversarial mock server
 ## Current status
 
 **Phase 0, Phase 1 (M1) & Phase 2 (M2) complete (all merged to `main`); Phase 3 (M3) — the
-resilience centerpiece — in progress: adversarial mock harness (T3.1 ✅), ban classifier
-(T3.2 ✅), throttle/backoff/circuit-breaker (T3.3 ✅), proxy + identity rotation (T3.4 ✅), and
-data-quality gates (T3.5 ✅) land; resilience integration + M3 gate (T3.6) next.** All three acquisition kinds (REST/HTML/GraphQL) feed one pipeline, and the
+resilience centerpiece — COMPLETE (gate passed), pending PR: adversarial mock harness (T3.1 ✅),
+ban classifier (T3.2 ✅), throttle/backoff/circuit-breaker (T3.3 ✅), proxy + identity rotation
+(T3.4 ✅), data-quality gates (T3.5 ✅), and full-scenario resilience integration (T3.6 ✅) all
+land. Next: Phase 4 (M4) — intelligence + hardening.** All three acquisition kinds (REST/HTML/GraphQL) feed one pipeline, and the
 first REST vertical slice runs end to end (crawl → pipeline → Postgres → API with freshness). The
 app is built
 **nested in this repo** (not a sibling `../acquire-intel-app`) — one coherent codebase, per the
@@ -403,7 +404,23 @@ products from fixtures through one pipeline + storage; strict ruff/mypy/pytest g
   `quarantined`). Full suite **251 passed / 0 skipped** with the DB up; ruff + mypy clean; E2E
   happy path unaffected. **New: ADR-0012**.
 
-**Next: T3.6 — resilience integration (M3 gate)**: a full crawl against the harness across every
-scenario (429 / 403-block / CAPTCHA / cookie-wall / soft-ban / drift), asserting recovery, that
-`ban_events` are recorded with correct kinds/actions, and that **0 rows** in `price_observations`
-originate from a blocked/invalid/quarantined response — the milestone-closing end-to-end proof.
+- **T3.6 — Resilience integration ✅ (M3 gate passed)** (docs/06 §4, docs/03 §2.4). The
+  milestone-closing proof that the whole stack works end-to-end against the adversarial harness.
+  **Ban ledger wired**: a new `BanEventRepository` persists the run's detected `BanEvent`s to the
+  `ban_events` table; the runner passes a shared `ban_events` sink to the spider (the
+  `BanDetectionMiddleware` fills it — no middleware→storage coupling) and, on close, records the
+  rows + the count on the `crawl_runs` ledger. **Integration test** (`test_resilience_integration.py`,
+  the harness in a thread, a real `acquire-intel crawl` subprocess per scenario into Postgres):
+  `happy` / `rate_limited` (backoff) / `block_after_n` (identity rotation, `block_after=1`) each
+  recover the **full catalogue** (3 observations); `captcha` / `soft_ban` persist **0** observations
+  and land a `ban_events` row with the right kind (`captcha` / `empty`) and action (`rotate_identity`);
+  every ban scenario proves the "**0 rows in `price_observations` from a blocked/invalid response**"
+  invariant, and the ledger's `ban_events` count matches the audit rows. `cookie_wall`/`drift`
+  recovery stay covered at the unit level (`test_rotation_middleware`, extractor drift fixtures).
+  Full suite **256 passed / 0 skipped** with the DB up; ruff + mypy clean. No new ADR (integration
+  task; ban-event persistence follows ADR-0006 + docs/03 §2.4).
+
+**Phase 3 / M3 gate: DONE.** The resilience layer recovers from rate-limits/blocks/soft-bans,
+records the ban audit trail, and never persists a blocked/invalid/quarantined response — proven
+end-to-end against the harness. Pending PR to `main`. **Next: Phase 4 (M4) — intelligence +
+hardening** (price history/deals, dashboard, scheduler + admin trigger, metrics, change detection).

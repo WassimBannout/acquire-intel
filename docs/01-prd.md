@@ -132,10 +132,10 @@ section of `CLAUDE.md`; those are the source of truth for task-level state.*
 
 ### Progress at a glance
 
-**How far along: 21 / 28 backlog tasks complete (~75%); 3 of 5 milestones gated; M3 (the centerpiece) underway, now 5/6.**
+**How far along: 22 / 28 backlog tasks complete (~79%); 4 of 5 milestones gated; M3 (the resilience centerpiece) COMPLETE — gate passed.**
 
 ```
-Done  ██████████████████████████████░░░░░░░░░░  75%   (M0 ✅  M1 ✅  M2 ✅  M3 🟡  M4 ⬜)
+Done  ████████████████████████████████░░░░░░░░  79%   (M0 ✅  M1 ✅  M2 ✅  M3 ✅  M4 ⬜)
 ```
 
 | Phase | Tasks | Status | Delivers |
@@ -143,7 +143,7 @@ Done  ████████████████████████�
 | **M0 — Foundation** | 6 / 6 | ✅ Gated | uv/Docker/Postgres, config boundary, Scrapy + Flask skeletons, CI, `/health` |
 | **M1 — First REST slice** | 7 / 7 | ✅ Gated | one command: crawl → validate → normalize → dedup → persist → serve, with freshness |
 | **M2 — More techniques** | 3 / 3 | ✅ Gated | all three kinds (REST/HTML/GraphQL) feed the identical pipeline + storage → canonical products |
-| **M3 — Resilience + harness** | 5 / 6 | 🟡 Underway | harness (T3.1) + ban classifier (T3.2) + throttle/backoff/circuit-breaker (T3.3) + proxy/identity rotation (T3.4) + data-quality gates (T3.5) done; full-scenario integration (T3.6) closes the gate — **the centerpiece** |
+| **M3 — Resilience + harness** | 6 / 6 | ✅ Gated | harness (T3.1) + ban classifier (T3.2) + throttle/backoff/circuit-breaker (T3.3) + proxy/identity rotation (T3.4) + data-quality gates (T3.5) + full-scenario integration (T3.6) — **the centerpiece**: recovery + ban ledger + zero garbage proven end-to-end vs. the harness |
 | **M4 — Intelligence + hardening** | 0 / 6 | ⬜ Not started | deals/drift detection, dashboard, scheduler + admin crawl, metrics, demo/CI polish |
 
 The foundation and the first end-to-end REST slice are done and proven; a single command crawls a
@@ -151,21 +151,21 @@ source through the full pipeline and the API serves it with freshness, and all t
 techniques — a paginated **REST** extractor, a Playwright-rendered **HTML** extractor, and a
 cursor-paginated **GraphQL** extractor — now land under the same contract, feeding one shared
 pipeline + storage (M2 gated). Now the **anti-bot resilience layer (M3) — the largest and
-highest-value phase — is well underway**: its adversarial mock harness (the deterministic adversary
-every resilience task is proven against) has landed, and **five of its six tasks are done** — the
-ban/anti-bot **classifier** (never cache garbage), **adaptive throttle + Retry-After backoff +
-per-domain circuit breaker**, the **proxy pool + coherent identity rotation**, and the **data-quality
-gates** (range/continuity/volume → quarantine, never silent-store) — leaving only the
-**full-scenario integration gate** (T3.6), then the intelligence/hardening
-layer (M4). By task count ~75%; **effort-weighted it is around the midpoint**, since M3 alone is the
-single biggest chunk of the remaining work and the core competency this project exists to
-demonstrate. Per-milestone, per-task, and per-FR detail follows.
+highest-value phase — is COMPLETE (gate passed)**: its adversarial mock harness (the deterministic
+adversary every resilience task is proven against) landed, and **all six of its tasks are done** —
+the ban/anti-bot **classifier** (never cache garbage), **adaptive throttle + Retry-After backoff +
+per-domain circuit breaker**, the **proxy pool + coherent identity rotation**, the **data-quality
+gates** (range/continuity/volume → quarantine, never silent-store), and the **full-scenario
+integration gate** (T3.6) that proves the whole stack recovers, records the ban audit trail, and
+persists zero garbage end-to-end against the harness. Remaining is only the intelligence/hardening
+layer (M4). By task count ~79%; the single biggest chunk of work — the core competency this project
+exists to demonstrate — is now delivered and gated. Per-milestone, per-task, and per-FR detail follows.
 
 **Overall: M0 (Foundation), M1 (first REST slice), and M2 (more techniques) complete and gated —
 all three acquisition kinds (REST/HTML/GraphQL) now feed one pipeline; M3 (the resilience
-centerpiece) is 5/6 done — harness, ban classifier, throttle/backoff/circuit-breaker,
-proxy/identity rotation, and data-quality gates all land, with only full-scenario integration
-remaining.** The platform boots, migrates, and answers
+centerpiece) is COMPLETE and gated — harness, ban classifier, throttle/backoff/circuit-breaker,
+proxy/identity rotation, data-quality gates, and full-scenario integration all land, proving
+recovery + ban ledger + zero garbage end-to-end.** The platform boots, migrates, and answers
 `/health`; the canonical data contracts exist and are parity-tested; and a single command,
 `acquire-intel crawl demo_rest`, drives the **whole slice**: the REST extractor fetches a
 paginated `products.json` → the Scrapy item pipeline validates → normalizes (Decimal money,
@@ -183,15 +183,18 @@ and follows cursor pagination (T2.2) — both under the same `SourceExtractor` c
 the milestone with a **three-kinds parity gate** (T2.3): a parameterized integration test drives
 all three fixture sets through the *one* shared normalize + persistence path into Postgres →
 identical canonical products, backed by a structural guard that the shared layers name no concrete
-source. **M2 gate passed.** **M3, the anti-bot resilience layer, is now 5/6:** on top of the
-adversarial harness, the response **classifier** gates every download (a block/CAPTCHA/empty page
-is recorded as a `BanEvent` and dropped, never stored), an **adaptive throttle + Retry-After-aware
-full-jitter backoff + per-domain circuit breaker** govern rate and failure, a **proxy pool +
-coherent identity rotation** recover from a persistent block by escalating from the honest contact
-UA to a coherent browser bundle (fresh cookie jar) — proven against the harness `block_after_n` and
-`cookie_wall` scenarios — and **data-quality gates** (range/continuity per item; a run-atomic volume
-gate that quarantines and commits nothing on a baseline breach) enforce FR-9's "never silent-store".
-Remaining: the full-scenario integration gate (T3.6).
+source. **M2 gate passed.** **M3, the anti-bot resilience layer, is COMPLETE (gate passed):** on top
+of the adversarial harness, the response **classifier** gates every download (a block/CAPTCHA/empty
+page is recorded as a `BanEvent` and dropped, never stored), an **adaptive throttle +
+Retry-After-aware full-jitter backoff + per-domain circuit breaker** govern rate and failure, a
+**proxy pool + coherent identity rotation** recover from a persistent block by escalating from the
+honest contact UA to a coherent browser bundle (fresh cookie jar), **data-quality gates**
+(range/continuity per item; a run-atomic volume gate that quarantines and commits nothing on a
+baseline breach) enforce FR-9's "never silent-store", and the **full-scenario integration gate**
+(T3.6) proves it all end-to-end — a real crawl subprocess per harness scenario into Postgres:
+`happy`/`rate_limited`/`block_after_n` recover the full catalogue, `captcha`/`soft_ban` persist zero
+observations and record `ban_events` with the right kind/action, and no blocked/invalid/quarantined
+response ever becomes a `price_observation`.
 
 ### Milestone progress
 
@@ -200,7 +203,7 @@ Remaining: the full-scenario integration gate (T3.6).
 | **M0 Foundation** | ✅ Complete | Gate passed: `docker compose up` + `uv run` boot; `/health` reflects DB; strict ruff/mypy/pytest green; CI wired. |
 | **M1 First vertical slice (REST)** | ✅ Complete | Gate passed: `acquire-intel crawl demo_rest` → observations in Postgres → API serves them with freshness (E2E test + live curl); strict ruff/mypy/pytest green. |
 | **M2 More techniques (HTML/GraphQL)** | ✅ Complete | Gate passed: REST/HTML/GraphQL all produce canonical products through one pipeline + storage (parameterized parity test + source-agnostic structural guard); strict ruff/mypy/pytest green. |
-| **M3 Resilience + harness** | 🟡 In progress | The centerpiece, 5/6. T3.1 harness ✅, T3.2 ban classifier ✅, T3.3 throttle/backoff/circuit-breaker ✅, T3.4 proxy/identity rotation ✅, T3.5 data-quality gates ✅. Next: T3.6 full-scenario integration → M3 gate. |
+| **M3 Resilience + harness** | ✅ Complete | Gate passed: the whole resilience stack recovers from rate-limits/blocks/soft-bans, records the `ban_events` audit trail, and persists **0** blocked/invalid/quarantined rows — proven end-to-end vs. the harness (T3.1–T3.6). strict ruff/mypy/pytest green (256 passed). |
 | **M4 Intelligence + hardening** | ⬜ Not started | — |
 
 ### M1 progress (REST slice)
@@ -232,7 +235,7 @@ Remaining: the full-scenario integration gate (T3.6).
 | T3.3 — Throttle, backoff, circuit-breaker | ✅ Done | AutoThrottle + per-domain caps from config; `resilience/backoff.py` (pure full-jitter exponential honouring `Retry-After`) + `BackoffRetryMiddleware` @585 retries 429/503 with a real `await asyncio.sleep`, bounded (then falls through to the ban gate); `resilience/circuit.py` (pure per-domain state machine) + `CircuitBreakerMiddleware` @583 trips on repeated `blocked/captcha/empty` and short-circuits an open domain, with a half-open probe after cool-down. 43 tests (backoff maths, circuit FSM, both middlewares incl. the real harness rate-limit sequence) + verified in the real engine (rate_limited → 3 items, 2 retries, 0 bans). |
 | T3.4 — Proxy manager + identity rotation | ✅ Done | `resilience/proxy.py` (`ProxyPool`: pure, clock-injectable round-robin over healthy proxies, per-proxy tallies, banned → quarantine cool-down, **zero-proxy = direct** and all-cooling-down degrades to direct; env-supplied, never hardcoded) + `resilience/identity.py` (`BrowserProfile`/`IdentityPool`: **coherent** bundles — UA + matching client-hints/headers/viewport/locale — rotated whole with a fresh per-identity cookie jar). `IdentityRotationMiddleware` @582 is **respectful by default** (honest contact UA until a block), then **escalates** to a browser identity + fresh proxy on a persistent block (resets the harness's per-identity budget), retries a `Set-Cookie` cookie wall with the *same* identity (replays the session cookie), and never rotates on rate-limits (backoff owns those); bounded per request, then falls to the ban gate. 18 tests incl. real-harness `block_after_n` + `cookie_wall`. ADR-0011. |
 | T3.5 — Data-quality gates | ✅ Done | `pipeline/quality.py` (pure `check_range`/`check_continuity`/`check_volume` + `GateThresholds` + `QualityIssue`). **Per-item** gates in `QualityGatePipeline` @350 drop out-of-range / discontinuous items (counted, never persisted); the **run-level volume** gate makes `PersistencePipeline` run-atomic — it buffers survivors and at close compares the count to the source's committed baseline (`CrawlRunRepository.baseline_count`), flushing all within tolerance or **committing nothing** on a breach (append-only store has no delete, ADR-0012). A quarantined run is a first-class ledger status (`RunStatus += quarantined`, no migration; runner maps the stat → `items_ok=0`). 20 tests incl. a real-Postgres proof that a volume-anomalous run stores **zero** rows and is flagged `quarantined`. ADR-0012. |
-| T3.6 — Resilience integration | ⬜ Todo | Full crawl across every harness scenario; `ban_events` recorded; **zero** blocked/invalid rows persisted. M3 gate. |
+| T3.6 — Resilience integration | ✅ Done | The M3 gate. New `BanEventRepository` persists the run's `BanEvent`s to `ban_events`; the runner passes a shared sink to the spider (filled by `BanDetectionMiddleware`, no middleware→storage coupling) and records rows + count on the ledger. `test_resilience_integration.py` runs a real `acquire-intel crawl` subprocess per harness scenario into Postgres: `happy`/`rate_limited`/`block_after_n` recover the full catalogue; `captcha`/`soft_ban` persist **0** observations + a correctly-kinded/actioned `ban_events` row; every ban scenario proves **0** blocked/invalid rows persisted. 256 passed. |
 
 ### What M0 delivered (T0.1–T0.6, all ✅)
 
@@ -263,7 +266,7 @@ Remaining: the full-scenario integration gate (T3.6).
 | FR-7 (boundary validation) | ✅ Done | Config + extractor output validated via `RawProduct` (`extra="forbid"`, T1.1); the pipeline re-asserts the boundary and rejects+counts unmappable items, never persisting garbage (T1.4) — now exercised in a live crawl (T1.7). Deeper data-quality gates (range/continuity/volume) now land in FR-9/T3.5. |
 | FR-8 (normalize + dedup pipeline) | ✅ Done | Scrapy item pipeline normalizes `RawProduct` → `Product` + `PriceObservation` (Decimal money, canonical id, currency fallback) and dedups within a run, rejecting/counting invalid (T1.2/T1.4, ADR-0010); its output is persisted by `PersistencePipeline` and proven end-to-end (T1.7). |
 | FR-9 (data-quality gates) | ✅ Done | T3.5 (ADR-0012): shape (upstream `RawProduct`/`normalize`) + **range** (plausible price band) + **continuity** (per-product jump vs. last committed price) drop bad items inline (counted, never persisted), and a run-atomic **volume** gate quarantines a whole run — committing **nothing** — when its surviving count strays from the source baseline, recorded as `crawl_runs.status="quarantined"`. Proven by unit + real-Postgres integration tests (a volume-anomalous run stores zero rows). |
-| FR-10 (crawl-run ledger) | ✅ Done | The runner opens a `crawl_runs` row before the crawl and closes it with a terminal status (`success`/`partial`/`failed`) + `items_ok`/`items_rejected` from Scrapy stats, even on crash (T1.5/T1.7). Ban-event recording and health/freshness derivation over the ledger are M3/M4. |
+| FR-10 (crawl-run ledger) | ✅ Done | The runner opens a `crawl_runs` row before the crawl and closes it with a terminal status (`success`/`partial`/`failed`/`quarantined`) + `items_ok`/`items_rejected` from Scrapy stats, even on crash (T1.5/T1.7/T3.5). **Ban-event recording now lands** (T3.6): a `BanEventRepository` persists each run's detected bans to `ban_events` with the count on the ledger row. Health/freshness derivation over the ledger (dashboards/metrics) is M4. |
 | FR-11 (adversarial harness) | ✅ Done | `harness/` (T3.1, ADR-0009): a self-contained Flask mock server with path-selected, deterministic scenarios — `happy`/`rate_limited`/`block_after_n`/`captcha`/`cookie_wall`/`soft_ban`/`drift` — keyed per-identity with a `__admin__/reset` control. 12 self-tests + verified live; `uv run python -m harness.server`. The resilience tasks (T3.2–T3.6) are proven against it. |
 | FR-12 (price-history time-series) | ✅ Done | Append-only `price_observations` is populated by a live crawl (T1.7), proven immutable across re-runs (T1.5), and served over HTTP as `GET /products/{id}/price-history` with freshness + windowing (T1.6) — the full capture→serve path is exercised end-to-end. |
 | FR-13 (Flask API) | 🟡 Substantial | App factory + `/health` (M0) plus the two read routes `GET /products` and `GET /products/{id}/price-history` (T1.6) — spec-conformant camelCase, freshness envelope, 404 problem+json, response shapes validated vs pydantic models. `/deals`, `/admin/crawl`, `/health/sources` routes pending M4. |

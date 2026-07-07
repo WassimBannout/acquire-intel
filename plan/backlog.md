@@ -154,7 +154,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 - **Acceptance:** anomalous volume/range quarantined + recorded; nothing garbage stored.
 - **Verify:** unit + integration tests. (FR-9, docs/04 §3)
 
-### T3.6 — Resilience integration (M3 gate)
+### [x] T3.6 — Resilience integration (M3 gate)
 - **Goal:** full crawl against the harness across all scenarios.
 - **Acceptance:** all scenarios green; `ban_events` recorded with correct kinds/actions;
   **0 rows** in `price_observations` originate from a blocked/invalid response.

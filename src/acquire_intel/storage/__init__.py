@@ -14,6 +14,7 @@ from acquire_intel.storage.models import (
     Source,
 )
 from acquire_intel.storage.repositories import (
+    BanEventRepository,
     CrawlRunRepository,
     PriceObservationRepository,
     ProductRepository,
@@ -22,6 +23,7 @@ from acquire_intel.storage.repositories import (
 
 __all__ = [
     "BanEvent",
+    "BanEventRepository",
     "Base",
     "CrawlRun",
     "CrawlRunRepository",

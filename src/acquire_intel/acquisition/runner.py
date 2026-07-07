@@ -24,12 +24,17 @@ from acquire_intel.acquisition.scrapy_settings import build_scrapy_settings
 from acquire_intel.monitoring.logging import bind_run, configure_logging, get_logger
 from acquire_intel.pipeline.item_pipeline import STAT_ITEMS_REJECTED
 from acquire_intel.pipeline.persistence import STAT_ITEMS_PERSISTED, STAT_QUALITY_QUARANTINED
-from acquire_intel.storage import CrawlRunRepository, SourceRepository, session_scope
+from acquire_intel.storage import (
+    BanEventRepository,
+    CrawlRunRepository,
+    SourceRepository,
+    session_scope,
+)
 
 if TYPE_CHECKING:
     from scrapy.crawler import Crawler
 
-    from acquire_intel.contracts import RunStatus
+    from acquire_intel.contracts import BanEvent, RunStatus
 
 _DEFAULT_CURRENCY = "USD"
 
@@ -52,6 +57,7 @@ def run_crawl(source_id: str) -> int:
 
         persistable = getattr(spider_cls, "kind", None) is not None
         crawl_kwargs: dict[str, Any] = {}
+        ban_sink: list[BanEvent] = []  # the ban-detection middleware appends detected events here
         if persistable:
             source = _load_source(source_id)
             if source is None:
@@ -61,6 +67,7 @@ def run_crawl(source_id: str) -> int:
                 "run_id": run_id,
                 "base_url": source["base_url"],
                 "default_currency": source["default_currency"],
+                "ban_events": ban_sink,  # shared list: middleware fills it, we persist it below
             }
             _open_run(run_id, source_id)
 
@@ -73,12 +80,14 @@ def run_crawl(source_id: str) -> int:
             process.start()  # blocks until the crawl finishes and the reactor stops
         except Exception:
             if persistable:
-                _close_run(run_id, status="failed", items_ok=0, items_rejected=0)
+                _close_run(
+                    run_id, status="failed", items_ok=0, items_rejected=0, ban_events=ban_sink
+                )
             log.exception("crawl.crashed")
             raise
 
         stats = _collect_stats(crawler)
-        log.info("crawl.finished", **stats)
+        log.info("crawl.finished", **stats, ban_events=len(ban_sink))
         if persistable:
             items_ok = int(stats["items_ok"])
             items_rejected = int(stats["items_rejected"])
@@ -89,6 +98,7 @@ def run_crawl(source_id: str) -> int:
                 ),
                 items_ok=items_ok,
                 items_rejected=items_rejected,
+                ban_events=ban_sink,
             )
         return 0
 
@@ -113,13 +123,23 @@ def _open_run(run_id: str, source_id: str) -> None:
         )
 
 
-def _close_run(run_id: str, *, status: RunStatus, items_ok: int, items_rejected: int) -> None:
+def _close_run(
+    run_id: str,
+    *,
+    status: RunStatus,
+    items_ok: int,
+    items_rejected: int,
+    ban_events: list[BanEvent],
+) -> None:
     with session_scope() as session:
+        # Append the run's ban audit trail (docs/03 §2.4) and record the count on the ledger row.
+        recorded = BanEventRepository(session).record(run_id, ban_events)
         CrawlRunRepository(session).close(
             run_id,
             status=status,
             items_ok=items_ok,
             items_rejected=items_rejected,
+            ban_events=recorded,
             finished_at=datetime.now(UTC),
         )
 

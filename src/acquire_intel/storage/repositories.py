@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from acquire_intel.storage.models import CrawlRun, PriceObservation, Product, Source
+from acquire_intel.storage.models import BanEvent, CrawlRun, PriceObservation, Product, Source
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -264,3 +264,33 @@ class CrawlRunRepository:
     def get(self, run_id: str) -> CrawlRun | None:
         """Return the run by id, or ``None``."""
         return self._session.get(CrawlRun, run_id)
+
+
+class BanEventRepository:
+    """The anti-bot audit trail — append-only ``ban_events`` rows for a run (T3.6, docs/03 §2.4)."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def record(self, run_id: str, events: list[contracts.BanEvent]) -> int:
+        """Append the run's detected ban events; returns how many were written."""
+        for event in events:
+            self._session.add(
+                BanEvent(
+                    run_id=run_id,
+                    kind=event.kind,
+                    http_status=event.http_status,
+                    action_taken=event.action_taken,
+                    occurred_at=event.occurred_at,
+                )
+            )
+        self._session.flush()
+        return len(events)
+
+    def list_for(self, run_id: str) -> list[BanEvent]:
+        """Return a run's ban events, oldest-first (the audit order)."""
+        return list(
+            self._session.scalars(
+                select(BanEvent).where(BanEvent.run_id == run_id).order_by(BanEvent.occurred_at)
+            )
+        )
