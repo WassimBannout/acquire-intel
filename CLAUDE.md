@@ -121,8 +121,8 @@ uv run python -m harness.server      # start the adversarial mock server
 
 ## Current status
 
-**Phase 0/1/2 complete (merged to `main`); Phase 3 (M3) — the resilience centerpiece — COMPLETE
-(gate passed), pending PR #5 (T3.1–T3.6 ✅); Phase 4 (M4) — intelligence + hardening — in progress:
+**Phase 0/1/2/3 complete and merged to `main` (Phase 3 (M3) — the resilience centerpiece — gate
+passed, merged via PR #5, T3.1–T3.6 ✅); Phase 4 (M4) — intelligence + hardening — in progress:
 price history + deals (T4.1 ✅) lands; change/drift detection (T4.2) next.** All three acquisition
 kinds (REST/HTML/GraphQL) feed one pipeline, and the
 first REST vertical slice runs end to end (crawl → pipeline → Postgres → API with freshness). The
@@ -421,8 +421,8 @@ products from fixtures through one pipeline + storage; strict ruff/mypy/pytest g
 
 **Phase 3 / M3 gate: DONE.** The resilience layer recovers from rate-limits/blocks/soft-bans,
 records the ban audit trail, and never persists a blocked/invalid/quarantined response — proven
-end-to-end against the harness. Pending PR to `main`. **Next: Phase 4 (M4) — intelligence +
-hardening** (price history/deals, dashboard, scheduler + admin trigger, metrics, change detection).
+end-to-end against the harness. **Merged to `main` via PR #5.** **Next: Phase 4 (M4) — intelligence
++ hardening** (price history/deals, dashboard, scheduler + admin trigger, metrics, change detection).
 
 ### Phase 4 — Intelligence + hardening (M4)
 
@@ -442,5 +442,5 @@ hardening** (price history/deals, dashboard, scheduler + admin trigger, metrics,
 **Next: T4.2 — change / selector-drift detection**: flag when a source's output shape/volume shifts
 (alert, don't crash) — a drifted fixture raises a flagged run, not a silent bad crawl (FR-16).
 
-> Phase 4 is being built on a `phase-4-intelligence` branch stacked on the unmerged Phase 3
-> (`phase-3-resilience` / PR #5); once PR #5 merges, the Phase 4 PR retargets cleanly to `main`.
+> Phase 4 is being built on the `phase-4-intelligence` branch; PR #6 targets `main` directly
+> (Phase 3 merged via #5). The Phase 4 PR accumulates M4 tasks and merges when the phase completes.
