@@ -126,19 +126,25 @@ def _crawl() -> subprocess.CompletedProcess[str]:
     )
 
 
-# scenario -> (expected observations persisted, expected ban kind or None for a clean recovery)
+# scenario -> (expected observations persisted, expected ban kind or None, expected run status)
 _CASES = [
-    ("happy", 3, None),
-    ("rate_limited", 3, None),  # backoff honours Retry-After, then succeeds
-    ("block_after_n", 3, None),  # 403 → rotate identity → fresh budget → full catalogue
-    ("captcha", 0, "captcha"),  # challenge page, never data
-    ("soft_ban", 0, "empty"),  # 200 empty body, a silent block
+    ("happy", 3, None, "success"),
+    ("rate_limited", 3, None, "success"),  # backoff honours Retry-After, then succeeds
+    ("block_after_n", 3, None, "success"),  # 403 → rotate identity → fresh budget → full catalogue
+    ("captcha", 0, "captcha", "success"),  # challenge dropped pre-parse → 0 items, no drift
+    ("soft_ban", 0, "empty", "success"),  # 200 empty body, a silent block
+    ("drift", 0, None, "flagged"),  # 200 OK but renamed fields → seen but unmappable (T4.2)
 ]
 
 
-@pytest.mark.parametrize(("scenario", "expected_obs", "expected_ban"), _CASES)
+@pytest.mark.parametrize(("scenario", "expected_obs", "expected_ban", "expected_status"), _CASES)
 def test_resilience_scenario_end_to_end(
-    engine: Engine, harness: str, scenario: str, expected_obs: int, expected_ban: str | None
+    engine: Engine,
+    harness: str,
+    scenario: str,
+    expected_obs: int,
+    expected_ban: str | None,
+    expected_status: str,
 ) -> None:
     _truncate(engine)
     _reset_harness(harness)
@@ -169,6 +175,8 @@ def test_resilience_scenario_end_to_end(
             assert obs_count == 0, f"{scenario}: a ban must never be persisted as data"
         # The ledger's ban count agrees with the audit-trail rows.
         assert run.ban_events == len(bans)
+        # The run is ledgered with the right terminal status (drift → flagged, T4.2).
+        assert run.status == expected_status, f"{scenario}: run status"
     finally:
         reader.close()
         _truncate(engine)

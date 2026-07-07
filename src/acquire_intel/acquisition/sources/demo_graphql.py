@@ -33,6 +33,7 @@ from pydantic import ValidationError
 from scrapy.http import JsonRequest, TextResponse
 
 from acquire_intel.acquisition.extractor import RawProduct
+from acquire_intel.acquisition.telemetry import record_parse
 from acquire_intel.monitoring.logging import get_logger
 
 if TYPE_CHECKING:
@@ -149,6 +150,7 @@ class DemoGraphqlExtractor(scrapy.Spider):
                 emitted += 1
                 yield raw
 
+        record_parse(self, seen=len(edges), mapped=emitted)
         page_info = connection.get("pageInfo")
         page_info = page_info if isinstance(page_info, dict) else {}
         _log.info("demo_graphql.page_parsed", seen=len(edges), emitted=emitted)

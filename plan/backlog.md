@@ -170,7 +170,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 - **Acceptance:** deterministic drop computation on fixtures; spec-conformant endpoint.
 - **Verify:** unit + integration tests. (FR-17, FR-13)
 
-### T4.2 — Change / selector-drift detection
+### [x] T4.2 — Change / selector-drift detection
 - **Goal:** detect and flag when a source's output shape/volume shifts (alert, don't crash).
 - **Acceptance:** a drifted fixture raises a flagged run, not a silent bad crawl.
 - **Verify:** tests over drifted fixtures. (FR-16)

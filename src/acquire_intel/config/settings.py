@@ -91,6 +91,12 @@ class Settings(BaseSettings):
     quality_volume_min_baseline: int = 5
     """Skip the volume gate until the baseline is at least this large (avoid false quarantines)."""
 
+    # --- monitoring: change / selector-drift detection (docs/04 §3, ADR-0014) ---
+    drift_min_entries: int = 1
+    """Minimum item-shaped entries a crawl must see before drift can be assessed."""
+    drift_max_unmapped_ratio: float = 0.5
+    """Flag the run when more than this fraction of seen entries fail to map (format change)."""
+
     # --- analytics: deal detection (docs/07, ADR-0013) -----------------------
     deal_min_drop_pct: float = 10.0
     """Minimum drop from a product's recent high (percent) to count as a deal."""

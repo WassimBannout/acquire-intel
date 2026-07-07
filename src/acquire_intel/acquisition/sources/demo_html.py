@@ -27,6 +27,7 @@ from pydantic import ValidationError
 from scrapy_playwright.page import PageMethod
 
 from acquire_intel.acquisition.extractor import RawProduct
+from acquire_intel.acquisition.telemetry import record_parse
 from acquire_intel.monitoring.logging import get_logger
 
 if TYPE_CHECKING:
@@ -90,7 +91,12 @@ class DemoHtmlExtractor(scrapy.Spider):
     def parse(self, response: Response, **kwargs: Any) -> Iterable[RawProduct]:
         """Turn the rendered listing into ``RawProduct``s (nothing if selectors drift)."""
         products = parse_products(response.text, base_url=self.base_url)
-        _log.info("demo_html.page_parsed", url=response.url, emitted=len(products))
+        # `seen` = product-card containers present; a card found but unmappable (renamed inner
+        # fields) is field drift. If the container hook itself drifts, seen == 0 → the volume gate
+        # (T3.5) catches it, not this signal (ADR-0014).
+        seen = len(Selector(text=response.text).css(_CARD_SELECTOR))
+        record_parse(self, seen=seen, mapped=len(products))
+        _log.info("demo_html.page_parsed", url=response.url, seen=seen, emitted=len(products))
         yield from products
 
 

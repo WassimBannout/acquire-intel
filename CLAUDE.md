@@ -123,7 +123,8 @@ uv run python -m harness.server      # start the adversarial mock server
 
 **Phase 0/1/2/3 complete and merged to `main` (Phase 3 (M3) — the resilience centerpiece — gate
 passed, merged via PR #5, T3.1–T3.6 ✅); Phase 4 (M4) — intelligence + hardening — in progress:
-price history + deals (T4.1 ✅) lands; change/drift detection (T4.2) next.** All three acquisition
+price history + deals (T4.1 ✅) and change/selector-drift detection (T4.2 ✅) land; dashboard (T4.3)
+next.** All three acquisition
 kinds (REST/HTML/GraphQL) feed one pipeline, and the
 first REST vertical slice runs end to end (crawl → pipeline → Postgres → API with freshness). The
 app is built
@@ -439,8 +440,22 @@ end-to-end against the harness. **Merged to `main` via PR #5.** **Next: Phase 4 
   empty). Full suite **268 passed / 0 skipped** with the DB up; ruff + mypy clean. **New: ADR-0013**
   (deal = drop vs. the product's own recent high).
 
-**Next: T4.2 — change / selector-drift detection**: flag when a source's output shape/volume shifts
-(alert, don't crash) — a drifted fixture raises a flagged run, not a silent bad crawl (FR-16).
+- **T4.2 — Change / selector-drift detection ✅** (ADR-0014, docs/04 §3, FR-16). Flag a source whose
+  output *shape* shifted (renamed fields) instead of silently recording a near-empty crawl. Extractors
+  call `acquisition/telemetry.py::record_parse(seen, mapped)` per page (entries in the envelope vs.
+  `RawProduct`s produced), accumulating `acquire/entries_seen`/`entries_mapped`. The runner runs the
+  pure `analytics/drift.py::assess_drift` (drift = ≥ `DRIFT_MIN_ENTRIES` seen but > `DRIFT_MAX_UNMAPPED_RATIO`
+  unmapped) and ledgers a drifted run as a new terminal status **`flagged`** (string column, no
+  migration) + a `crawl.drift_detected` warning. Precedence: failed > **flagged** (drift) > quarantined
+  (volume, T3.5) > partial > success — drift outranks a volume quarantine because it says *why*. Two
+  flavours split cleanly: **field drift** (seen-but-unmappable) → flagged here; **container drift** (the
+  item selector/array vanishes → nothing seen) → the T3.5 volume gate. Proven end-to-end: a real crawl
+  of the harness `drift` scenario → 0 observations + `status=flagged` (added to `test_resilience_integration.py`),
+  plus pure boundary tests. Full suite **275 passed / 0 skipped** with the DB up; ruff + mypy clean.
+  **New: ADR-0014**.
+
+**Next: T4.3 — dashboard**: a light server-rendered dashboard (price history + crawler-health panels)
+over the read API (FR-14).
 
 > Phase 4 is being built on the `phase-4-intelligence` branch; PR #6 targets `main` directly
 > (Phase 3 merged via #5). The Phase 4 PR accumulates M4 tasks and merges when the phase completes.
