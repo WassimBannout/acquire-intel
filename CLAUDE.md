@@ -122,10 +122,12 @@ uv run python -m harness.server      # start the adversarial mock server
 ## Current status
 
 **Phase 0/1/2/3 complete and merged to `main` (Phase 3 (M3) — the resilience centerpiece — gate
-passed, merged via PR #5, T3.1–T3.6 ✅); Phase 4 (M4) — intelligence + hardening — in progress:
-price history + deals (T4.1 ✅), change/selector-drift detection (T4.2 ✅), the dashboard
-(T4.3 ✅), per-source health + metrics (T4.4 ✅), and the scheduler + admin crawl trigger (T4.5 ✅)
-land; demo & CI/CD polish (T4.6) closes the phase next.** All three acquisition
+passed, merged via PR #5, T3.1–T3.6 ✅); Phase 4 (M4) — intelligence + hardening — COMPLETE
+(all six tasks ✅, the full 28/28 roadmap delivered): price history + deals (T4.1 ✅),
+change/selector-drift detection (T4.2 ✅), the dashboard (T4.3 ✅), per-source health + metrics
+(T4.4 ✅), the scheduler + admin crawl trigger (T4.5 ✅), and demo & CI/CD polish (T4.6 ✅ — README
+5-minute demo + `pip-audit` in CI). Phase 4 lands on `phase-4-intelligence` (PR #6 → `main`).**
+All three acquisition
 kinds (REST/HTML/GraphQL) feed one pipeline, and the
 first REST vertical slice runs end to end (crawl → pipeline → Postgres → API with freshness). The
 app is built
@@ -515,9 +517,25 @@ end-to-end against the harness. **Merged to `main` via PR #5.** **Next: Phase 4 
   passed / 0 skipped** with the DB up; ruff + mypy clean. Verified live (401 vs 202 → detached crawl
   closes `success` in the background). **New: ADR-0016**.
 
-**Next: T4.6 — demo & CI/CD polish** (portfolio gate): README 5-minute demo (compose up → harness
-crawl → dashboard → ban-rate drop → API), full CI suite + `pip-audit`, security checklist (docs/08 §8).
-Then M4 closes and the phase PR (#6) merges to `main`.
+- **T4.6 — Demo & CI/CD polish ✅ (M4 gate passed, portfolio gate)**. The fresh-clone-to-working-demo
+  closer. **README** gains a **"Run the app — 5-minute demo"** (the top of the file now says the repo is
+  *both* the engineering kit and the implemented app): `docker compose up` + `alembic upgrade` →
+  `uv run python -m harness.server --block-after 1` → `scripts/demo_seed.py --scenario <s>` (a dev-only
+  script that upserts the `demo_rest` source at `{harness}/<scenario>`, since a crawl resolves
+  `base_url` from the `sources` table) → `acquire-intel crawl demo_rest` → `flask run`. A three-beat
+  story: `happy` (data + price charts), **`block_after_n` (identity rotation recovers the full
+  catalogue — the star)**, `captcha` (ban recorded, **zero garbage** stored). The harness server gains
+  `--block-after` / `--rate-limit-burst` flags so a single demo crawl can actually trigger a rotation
+  (default `block_after=3` never blocks in a 2-request crawl). **CI** gains a `pip-audit`
+  dependency-vulnerability gate after pytest (full suite already ran). Dry-ran end to end vs. the
+  harness (block_after_n → `identity_rotations=1`, 3 products; captcha → `banRate` 0.125, observations
+  unchanged; API/dashboard/health-sources/metrics all serve it); `pip-audit` clean; ruff + mypy + 306
+  tests green. No new ADR (demo/CI polish; mechanics follow ADR-0009/0016).
 
-> Phase 4 is being built on the `phase-4-intelligence` branch; PR #6 targets `main` directly
-> (Phase 3 merged via #5). The Phase 4 PR accumulates M4 tasks and merges when the phase completes.
+**Phase 4 / M4 gate: DONE — the full 28/28 roadmap is delivered.** All five milestones gated:
+foundation, the three-kinds pipeline, the resilience centerpiece, and the intelligence/hardening
+layer (deals, drift, dashboard, health/metrics, scheduler + admin trigger, demo + CI). Phase 4 lands
+on `phase-4-intelligence`; PR #6 → `main` closes it.
+
+> Phase 4 is built on the `phase-4-intelligence` branch; PR #6 targets `main` directly
+> (Phase 3 merged via #5). The Phase 4 PR accumulates M4 tasks and merges now that the phase is done.

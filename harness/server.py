@@ -152,8 +152,22 @@ def main() -> None:  # pragma: no cover - manual entrypoint
     parser = argparse.ArgumentParser(description="AcquireIntel adversarial mock harness")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8080)
+    parser.add_argument(
+        "--block-after",
+        type=int,
+        default=HarnessConfig.block_after,
+        help="requests an identity may make before block_after_n returns 403 "
+        "(use 1 to force an identity rotation within a single demo crawl)",
+    )
+    parser.add_argument(
+        "--rate-limit-burst",
+        type=int,
+        default=HarnessConfig.rate_limited_burst,
+        help="number of 429s an identity gets on rate_limited before a 200",
+    )
     args = parser.parse_args()
-    create_harness_app().run(host=args.host, port=args.port, threaded=True)
+    cfg = HarnessConfig(block_after=args.block_after, rate_limited_burst=args.rate_limit_burst)
+    create_harness_app(cfg).run(host=args.host, port=args.port, threaded=True)
 
 
 if __name__ == "__main__":  # pragma: no cover

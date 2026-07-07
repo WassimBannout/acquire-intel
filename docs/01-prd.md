@@ -132,10 +132,10 @@ section of `CLAUDE.md`; those are the source of truth for task-level state.*
 
 ### Progress at a glance
 
-**How far along: 27 / 28 backlog tasks complete (~96%); 4 of 5 milestones gated; M3 complete, M4 (intelligence + hardening) underway (5/6).**
+**How far along: 28 / 28 backlog tasks complete (100%); all 5 milestones gated; M4 (intelligence + hardening) complete — the full roadmap is delivered.**
 
 ```
-Done  ██████████████████████████████████████░░  96%   (M0 ✅  M1 ✅  M2 ✅  M3 ✅  M4 🟡)
+Done  ████████████████████████████████████████  100%  (M0 ✅  M1 ✅  M2 ✅  M3 ✅  M4 ✅)
 ```
 
 | Phase | Tasks | Status | Delivers |
@@ -144,7 +144,7 @@ Done  ████████████████████████�
 | **M1 — First REST slice** | 7 / 7 | ✅ Gated | one command: crawl → validate → normalize → dedup → persist → serve, with freshness |
 | **M2 — More techniques** | 3 / 3 | ✅ Gated | all three kinds (REST/HTML/GraphQL) feed the identical pipeline + storage → canonical products |
 | **M3 — Resilience + harness** | 6 / 6 | ✅ Gated | harness (T3.1) + ban classifier (T3.2) + throttle/backoff/circuit-breaker (T3.3) + proxy/identity rotation (T3.4) + data-quality gates (T3.5) + full-scenario integration (T3.6) — **the centerpiece**: recovery + ban ledger + zero garbage proven end-to-end vs. the harness |
-| **M4 — Intelligence + hardening** | 5 / 6 | 🟡 Underway | deals (T4.1) + drift detection (T4.2) + dashboard (T4.3) + health `GET /health/sources` + metrics (T4.4) + scheduler & token-gated `POST /admin/crawl` (T4.5) done; only demo & CI/CD polish (T4.6) remains |
+| **M4 — Intelligence + hardening** | 6 / 6 | ✅ Gated | deals (T4.1) + drift detection (T4.2) + dashboard (T4.3) + health `GET /health/sources` + metrics (T4.4) + scheduler & token-gated `POST /admin/crawl` (T4.5) + demo & CI/CD polish (T4.6, README 5-min demo + `pip-audit`) — the full roadmap is delivered |
 
 The foundation and the first end-to-end REST slice are done and proven; a single command crawls a
 source through the full pipeline and the API serves it with freshness, and all three acquisition
@@ -164,9 +164,10 @@ layer (M4), is now underway (5/6) — **price history + deals** (`GET /deals`, T
 ban-rate trend and identity/proxy rotations), **per-source health classification** (T4.4,
 `GET /health/sources` → healthy/degraded/stale/failing + a `/metrics` catalog), and the **scheduler +
 token-gated on-demand crawl** (T4.5, `POST /admin/crawl` + APScheduler, one orchestration shared by
-CLI/scheduler/HTTP) have landed — only the demo & CI/CD polish (T4.6) remains. By task count ~96%;
-the single biggest chunk of work — the core competency this project exists to demonstrate — is
-delivered and gated. Per-milestone, per-task, and per-FR detail follows.
+CLI/scheduler/HTTP), and the **demo & CI/CD polish** (T4.6, a README "Run the app — 5-minute demo"
+driving the harness end to end + a `pip-audit` gate in CI) have all landed — **M4 is complete and the
+full roadmap is delivered (28/28, all five milestones gated)**. Per-milestone, per-task, and per-FR
+detail follows.
 
 **Overall: M0 (Foundation), M1 (first REST slice), and M2 (more techniques) complete and gated —
 all three acquisition kinds (REST/HTML/GraphQL) now feed one pipeline; M3 (the resilience
@@ -211,7 +212,7 @@ response ever becomes a `price_observation`.
 | **M1 First vertical slice (REST)** | ✅ Complete | Gate passed: `acquire-intel crawl demo_rest` → observations in Postgres → API serves them with freshness (E2E test + live curl); strict ruff/mypy/pytest green. |
 | **M2 More techniques (HTML/GraphQL)** | ✅ Complete | Gate passed: REST/HTML/GraphQL all produce canonical products through one pipeline + storage (parameterized parity test + source-agnostic structural guard); strict ruff/mypy/pytest green. |
 | **M3 Resilience + harness** | ✅ Complete | Gate passed: the whole resilience stack recovers from rate-limits/blocks/soft-bans, records the `ban_events` audit trail, and persists **0** blocked/invalid/quarantined rows — proven end-to-end vs. the harness (T3.1–T3.6). strict ruff/mypy/pytest green (256 passed). |
-| **M4 Intelligence + hardening** | 🟡 In progress | Deals (T4.1) ✅; drift detection (T4.2) ✅; dashboard (T4.3) ✅; health `GET /health/sources` + `/metrics` (T4.4) ✅; scheduler + token-gated `POST /admin/crawl` (T4.5) ✅ (306 passed). Only demo & CI/CD polish (T4.6) remains to close the phase. |
+| **M4 Intelligence + hardening** | ✅ Gated | Deals (T4.1) ✅; drift detection (T4.2) ✅; dashboard (T4.3) ✅; health `GET /health/sources` + `/metrics` (T4.4) ✅; scheduler + token-gated `POST /admin/crawl` (T4.5) ✅; demo & CI/CD polish (T4.6) ✅ — README 5-min demo dry-ran vs. the harness + `pip-audit` in CI (306 passed). Phase complete. |
 
 ### M1 progress (REST slice)
 
@@ -253,7 +254,7 @@ response ever becomes a `price_observation`.
 | T4.3 — Dashboard | ✅ Done | Light server-rendered **Jinja + Chart.js** dashboard over the read layer (ADR-0007), mounted at the site root (JSON API stays under `API_BASE_PATH`). `GET /` renders a **crawler-health panel** (per source: last run status, freshness vs. `stale_after`, items ok/rejected, ban count, identity/proxy **rotations**, a ban-events **sparkline**) + the collected-products table with empty states; `GET /products/<id>` renders a price chart fed **client-side** from `/products/{id}/price-history` (no duplicate serialization) with a window selector + loading/empty states; unknown id → a 404 HTML page. Thin routes: health assembly is the pure `analytics/health.py::summarize_source` (freshness rule, rotation tally, oldest→newest trend), unit-testable without a DB; new `CrawlRunRepository.recent` + `BanEventRepository.counts_by_action`. Chart.js 4.4.3 **vendored** (offline demo); theme-aware CSS. 9 tests (5 pure + 4 Flask view); 284 passed / 0 skipped. Verified live vs. the harness. |
 | T4.4 — /health/sources + metrics | ✅ Done | `GET /health/sources` classifies each source **healthy/degraded/stale/failing** from its recent `crawl_runs` via the pure `analytics/health.py::classify_source` (freshness vs. `stale_after` + latest-run status + recent `ban_rate` = Σbans ÷ Σrequests over the last `HEALTH_RECENT_RUNS`), with precedence failing > stale > degraded > healthy and an `overall` worst-rollup; spec-conformant `SourceHealthResponse` (openapi `getSourceHealth`). `GET /metrics` exposes the docs/07 §4 catalog as JSON (`crawl_runs_total{source,status}`, `ban_events_total{source,kind}`, `ban_rate`, latest items ok/rejected, staleness, identity/proxy rotations). Enabling change: the runner persists `crawl_runs.timings.requests` (no migration) as the ban-rate denominator; new repo aggregates. 20 tests (10 pure + 2 Flask integration over seeded runs covering each state + the catalog); 295 passed. Verified live vs. the harness. **New: ADR-0015**. |
 | T4.5 — Scheduler + admin crawl | ✅ Done | One crawl orchestration shared by CLI, scheduler, and HTTP (ADR-0016). The executor stays the CLI (`run_crawl` gains an optional `run_id` that **adopts** a pre-opened ledger row); `acquisition/orchestrator.py::trigger_crawl` resolves targets (a named source or all registered), opens a `running` `crawl_runs` row per target + commits, then launches each crawl as a **detached subprocess** (`cli crawl … --run-id …`) → a non-blocking `202` with a real run. Scheduler (`acquisition/scheduler.py`, APScheduler) adds one interval job per source (interval from `crawl_policy.schedule_seconds` else default), opt-in via `SCHEDULER_ENABLED`. `POST /admin/crawl` (`admin_bp`) is `Bearer ADMIN_TOKEN` (constant-time) + a per-app rate limiter (429), returns `202 {accepted, runs}`; no/bad token → 401, unknown source → 404 (problem+json). 11 tests incl. a real-subprocess end-to-end (adopts run → closes `success`, 3 observations); 306 passed. Verified live. **New: ADR-0016**. |
-| T4.6 — Demo & CI/CD polish | ⬜ Todo | End-to-end demo + CI/CD hardening. |
+| T4.6 — Demo & CI/CD polish | ✅ Done | README **"Run the app — 5-minute demo"**: `docker compose up` → `harness.server --block-after 1` → `scripts/demo_seed.py` (upsert `demo_rest` at a scenario) → `crawl` → API + dashboard. Three-beat story: `happy` (data + price charts), `block_after_n` (**identity rotation recovers the full catalogue** — the star), `captcha` (ban recorded, **zero garbage** stored). CI gains a `pip-audit` dependency-vulnerability gate (full suite already runs). Dry-ran end to end vs. the harness; `pip-audit` clean. **Portfolio gate passed.** |
 
 ### What M0 delivered (T0.1–T0.6, all ✅)
 

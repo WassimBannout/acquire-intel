@@ -1,11 +1,72 @@
 # AcquireIntel — AI-Native Engineering Kit
 
-> This directory is **not the app**. It is the **durable engineering kit** you use to
-> *build* the app by prompting Claude Code in a disciplined, spec-first way.
->
-> Everything here is designed to outlive any single coding session. Wipe every working
-> copy of the app and you lose nothing — the source of truth for *what to build* and
-> *how to build it* lives here.
+> This repo is **both** the durable **engineering kit** (vision, PRD, architecture, ADRs,
+> specs, backlog, prompts — the source of truth for *what to build* and *how*) **and the
+> implemented app itself**, built nested here as one coherent codebase (`src/acquire_intel/`,
+> `harness/`, `tests/`). The kit outlives any single coding session; the app is the thing it
+> produced. **To just run it, jump to [Run the app — 5-minute demo](#run-the-app--5-minute-demo).**
+
+---
+
+## Run the app — 5-minute demo
+
+A fresh clone to a working demo — crawl a store, watch the anti-bot layer recover from a block,
+then serve the price data through the API + dashboard. Everything runs against a **local
+adversarial mock server** (no live site), so it is deterministic.
+
+**Prerequisites:** [uv](https://docs.astral.sh/uv/) and Docker.
+
+```bash
+# 0. Install deps and set the three required env vars (DB URL + two secrets).
+uv sync
+cp .env.example .env        # then set DATABASE_URL, FLASK_SECRET_KEY, ADMIN_TOKEN
+#   DATABASE_URL example: postgresql+psycopg://acquire:acquire@localhost:5432/acquire
+
+# 1. Postgres + schema.
+docker compose up -d
+uv run alembic upgrade head
+
+# 2. Start the adversarial harness in another terminal. `--block-after 1` makes it block an
+#    identity after one request, so a single crawl has to rotate identity to finish.
+uv run python -m harness.server --block-after 1
+```
+
+```bash
+# 3. HAPPY PATH — seed a source at the harness `happy` scenario, then crawl it.
+uv run python scripts/demo_seed.py --scenario happy
+uv run acquire-intel crawl demo_rest
+#   → 3 products + price observations persisted (run status: success).
+
+# 4. THE RESILIENCE STAR — the same crawl against a store that blocks you mid-pagination.
+uv run python scripts/demo_seed.py --scenario block_after_n
+uv run acquire-intel crawl demo_rest
+#   → the log shows `resilience.identity_rotated ... kind=blocked`, `identity_rotations=1`,
+#     and the FULL catalogue is still collected — it got a 403, rotated to a fresh coherent
+#     browser identity, and recovered.
+
+# 5. NEVER CACHE GARBAGE — a CAPTCHA challenge is detected, recorded, and never stored as data.
+uv run python scripts/demo_seed.py --scenario captcha
+uv run acquire-intel crawl demo_rest
+#   → `ban_events=1`, 0 items; `price_observations` is unchanged (a challenge page is not data).
+
+# 6. SERVE IT — the API + light dashboard.
+uv run flask --app acquire_intel.api run
+```
+
+Then open / curl:
+
+| URL | Shows |
+|-----|-------|
+| `http://127.0.0.1:5000/` | Dashboard: product table, price charts, crawler-health panel (ban-rate, rotations) |
+| `.../api/v1/products` | Collected products with latest price + freshness |
+| `.../api/v1/products/demo_rest:9001/price-history` | Append-only price time-series for one product |
+| `.../api/v1/health/sources` | Per-source `healthy`/`degraded`/`stale`/`failing` + `banRate` |
+| `.../api/v1/metrics` | Crawl/ban counters + gauges (docs/07 §4) |
+
+Other harness scenarios (`rate_limited`, `cookie_wall`, `soft_ban`, `drift`) are runnable the same
+way (`--scenario ...`); the full recovery matrix is proven deterministically in
+`tests/test_resilience_integration.py` against all seven. To trigger a crawl over HTTP instead of the
+CLI: `curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" .../api/v1/admin/crawl` (no token → 401).
 
 ---
 

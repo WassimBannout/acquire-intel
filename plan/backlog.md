@@ -192,11 +192,17 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 - **Acceptance:** scheduled tick triggers a crawl; no token → 401; token → 202.
 - **Verify:** integration tests; manual trigger. (FR-15, ADR-0007, docs/08)
 
-### T4.6 — Demo & CI/CD polish
+### [x] T4.6 — Demo & CI/CD polish
 - **Goal:** README with a 5-minute demo script (compose up → run harness crawl → see charts +
   ban-rate → run API); ensure CI runs full suite; `pip-audit` in CI.
 - **Acceptance:** a fresh clone can follow the README to a working demo; CI green.
 - **Verify:** dry-run the README steps. (portfolio gate)
+- **Done:** README "Run the app — 5-minute demo" (happy → data/charts; `block_after_n` →
+  identity rotation recovers the full catalogue; `captcha` → ban recorded, zero garbage stored);
+  `scripts/demo_seed.py` (upsert `demo_rest` at a harness scenario) + `harness.server
+  --block-after/--rate-limit-burst` so a single crawl can trigger a rotation; CI gains a
+  `pip-audit` step (full suite already runs). Dry-ran end to end vs. the harness (rotation →
+  3 products; captcha → banRate>0, observations unchanged); `pip-audit` clean.
 
 ---
 
