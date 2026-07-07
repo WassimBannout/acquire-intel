@@ -40,6 +40,10 @@ def build_scrapy_settings() -> Settings:
             "ACQUIRE_BACKOFF_MAX_DELAY": cfg.backoff_max_delay,
             "ACQUIRE_CIRCUIT_FAILURE_THRESHOLD": cfg.circuit_failure_threshold,
             "ACQUIRE_CIRCUIT_COOLDOWN_SECONDS": cfg.circuit_cooldown_seconds,
+            # Proxy pool + identity rotation (T3.4, docs/04 §2.1-2.2). Empty pool = direct.
+            "ACQUIRE_PROXY_POOL": cfg.proxy_urls,
+            "ACQUIRE_PROXY_COOLDOWN_SECONDS": cfg.proxy_cooldown_seconds,
+            "ACQUIRE_ROTATION_MAX_ATTEMPTS": cfg.rotation_max_attempts,
             # Playwright for JS-rendered `html` sources (ADR-0002). The handler delegates
             # non-`playwright` requests to the default downloader, so REST/GraphQL are
             # unaffected and no browser launches unless a request opts in via meta.
@@ -50,13 +54,15 @@ def build_scrapy_settings() -> Settings:
             },
             "PLAYWRIGHT_BROWSER_TYPE": "chromium",
             "PLAYWRIGHT_LAUNCH_OPTIONS": {"headless": True},
-            # Resilience downloader middlewares (T3.2/T3.3, docs/04 sec 2.4-2.5). All sit below
+            # Resilience downloader middlewares (T3.2/T3.3/T3.4, docs/04 sec 2.1-2.5). All sit below
             # HttpCompression (590) / Redirect (600) so they see the final, decompressed body.
             # process_response runs high-to-low: backoff (recover 429/503) -> circuit (record
-            # blocks) -> ban gate (record + drop). Only survivors of all three reach a spider.
+            # blocks) -> rotation (escalate identity + retry on a persistent block) -> ban gate
+            # (record + drop). Only survivors of all four reach a spider.
             "DOWNLOADER_MIDDLEWARES": {
                 "acquire_intel.resilience.middleware.BackoffRetryMiddleware": 585,
                 "acquire_intel.resilience.middleware.CircuitBreakerMiddleware": 583,
+                "acquire_intel.resilience.middleware.IdentityRotationMiddleware": 582,
                 "acquire_intel.resilience.middleware.BanDetectionMiddleware": 581,
             },
             # Validate → normalize → dedup, then persist every surviving item (T1.4 → T1.7).

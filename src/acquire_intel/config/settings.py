@@ -72,6 +72,12 @@ class Settings(BaseSettings):
     circuit_failure_threshold: int = 5
     circuit_cooldown_seconds: float = 60.0
 
+    # --- resilience: proxy + identity rotation (docs/04 §2.1-2.2, ADR-0011) ---
+    proxy_cooldown_seconds: float = 60.0
+    """Seconds a banned proxy is quarantined before it returns to the rotation."""
+    rotation_max_attempts: int = 4
+    """Max identity rotations / cookie retries per request before it falls to the ban gate."""
+
     # --- harness (tests only) ------------------------------------------------
     harness_base_url: str = "http://localhost:8999"
 
