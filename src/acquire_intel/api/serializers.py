@@ -104,3 +104,23 @@ class SourceHealthResponse(_CamelModel):
 
     overall: str  # healthy | degraded | stale | failing
     sources: list[SourceHealthOut]
+
+
+class CrawlRunOut(_CamelModel):
+    """A crawl-run ledger row (``specs/openapi.yaml`` ``CrawlRun``, T4.5)."""
+
+    id: str
+    source: str
+    status: str  # running | success | partial | failed | quarantined | flagged
+    items_ok: int | None = None
+    items_rejected: int | None = None
+    ban_events: int | None = None
+    started_at: datetime
+    finished_at: datetime | None = None
+
+
+class CrawlAcceptedResponse(_CamelModel):
+    """``POST /admin/crawl`` 202 body: the launched (``running``) runs."""
+
+    accepted: bool
+    runs: list[CrawlRunOut]

@@ -124,8 +124,8 @@ uv run python -m harness.server      # start the adversarial mock server
 **Phase 0/1/2/3 complete and merged to `main` (Phase 3 (M3) — the resilience centerpiece — gate
 passed, merged via PR #5, T3.1–T3.6 ✅); Phase 4 (M4) — intelligence + hardening — in progress:
 price history + deals (T4.1 ✅), change/selector-drift detection (T4.2 ✅), the dashboard
-(T4.3 ✅), and per-source health + metrics (T4.4 ✅) land; scheduler + admin crawl (T4.5) next.**
-All three acquisition
+(T4.3 ✅), per-source health + metrics (T4.4 ✅), and the scheduler + admin crawl trigger (T4.5 ✅)
+land; demo & CI/CD polish (T4.6) closes the phase next.** All three acquisition
 kinds (REST/HTML/GraphQL) feed one pipeline, and the
 first REST vertical slice runs end to end (crawl → pipeline → Postgres → API with freshness). The
 app is built
@@ -493,8 +493,31 @@ end-to-end against the harness. **Merged to `main` via PR #5.** **Next: Phase 4 
   full suite **295 passed / 0 skipped** with the DB up; ruff + mypy clean. Verified live (harness
   happy+captcha crawls → both endpoints). **New: ADR-0015**.
 
-**Next: T4.5 — scheduler + admin crawl**: APScheduler per-source schedules + a token-gated
-`POST /admin/crawl`, all calling the same crawl orchestration (CLI parity).
+- **T4.5 — Scheduler + admin crawl ✅** (ADR-0016, docs/08 §4, FR-15, openapi `triggerCrawl`).
+  Scheduled + on-demand crawls behind **one orchestration** shared by CLI, scheduler, and HTTP.
+  Scrapy's reactor can't restart in-process, so the split (ADR-0016): the **executor** stays the CLI
+  (`run_crawl` now takes an optional `run_id` — *adopts* a pre-opened ledger row, else mints its own;
+  `acquire-intel crawl <src> [--run-id ID]`); the **trigger** `acquisition/orchestrator.py::trigger_crawl`
+  resolves targets (a named source validated against the `sources`+spider registries, or **all**
+  registered), opens a `running` `crawl_runs` row per target **and commits**, then launches each crawl
+  as a **detached subprocess** (`-m acquire_intel.cli crawl … --run-id …`) and returns the running
+  runs — a non-blocking `202` reporting a real run, with process isolation + a fresh reactor. The
+  **scheduler** (`acquisition/scheduler.py`, APScheduler `BackgroundScheduler`) adds one interval job
+  per source calling `trigger_crawl([sid])` (interval from `crawl_policy.schedule_seconds` else
+  `SCHEDULER_INTERVAL_SECONDS`); **opt-in** via `SCHEDULER_ENABLED` (off by default, started in
+  `create_app`). **HTTP** `POST /admin/crawl` (`api/admin.py`, `admin_bp`) is `Bearer ADMIN_TOKEN`
+  (constant-time compare) + a per-app sliding-window rate limiter (`ADMIN_RATE_LIMIT_PER_MINUTE` → 429),
+  delegates to `trigger_crawl`, and returns `202 {accepted, runs:[CrawlRunOut]}`; missing/bad token →
+  401, unknown source → 404, all problem+json. The launcher is an **injectable seam** so tests avoid
+  real Scrapy. `apscheduler` added. 11 tests (admin 401/429/202/404/targeting, scheduler
+  disabled/per-source-jobs/tick-triggers-crawl, orchestrator resolve/open + a **real** end-to-end that
+  spawns the CLI subprocess adopting the run → closes `success`, 3 observations); full suite **306
+  passed / 0 skipped** with the DB up; ruff + mypy clean. Verified live (401 vs 202 → detached crawl
+  closes `success` in the background). **New: ADR-0016**.
+
+**Next: T4.6 — demo & CI/CD polish** (portfolio gate): README 5-minute demo (compose up → harness
+crawl → dashboard → ban-rate drop → API), full CI suite + `pip-audit`, security checklist (docs/08 §8).
+Then M4 closes and the phase PR (#6) merges to `main`.
 
 > Phase 4 is being built on the `phase-4-intelligence` branch; PR #6 targets `main` directly
 > (Phase 3 merged via #5). The Phase 4 PR accumulates M4 tasks and merges when the phase completes.

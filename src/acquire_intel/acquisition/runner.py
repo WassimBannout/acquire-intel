@@ -42,14 +42,19 @@ if TYPE_CHECKING:
 _DEFAULT_CURRENCY = "USD"
 
 
-def run_crawl(source_id: str) -> int:
+def run_crawl(source_id: str, run_id: str | None = None) -> int:
     """Run a one-shot crawl for ``source_id``. Returns a process exit code.
 
     ``0`` on a completed crawl; ``2`` if the source is unknown or (for a persistable source)
     not registered in the ``sources`` table.
+
+    ``run_id`` is normally generated here (direct CLI use). The orchestrator (T4.5) instead
+    **pre-opens** the ``crawl_runs`` ledger row and passes its id so a ``POST /admin/crawl`` can
+    return the ``running`` run immediately; when adopted, we skip the open and only close it.
     """
     configure_logging()
-    run_id = uuid.uuid4().hex
+    owns_run = run_id is None  # did we mint this run (and thus open its ledger row)?
+    run_id = run_id or uuid.uuid4().hex
     log = get_logger("acquire_intel.crawl")
 
     with bind_run(run_id=run_id, source=source_id):
@@ -72,7 +77,8 @@ def run_crawl(source_id: str) -> int:
                 "default_currency": source["default_currency"],
                 "ban_events": ban_sink,  # shared list: middleware fills it, we persist it below
             }
-            _open_run(run_id, source_id)
+            if owns_run:  # an adopted run_id was already opened by the orchestrator (T4.5)
+                _open_run(run_id, source_id)
 
         log.info("crawl.started", spider=spider_cls.name)
         process = CrawlerProcess(settings=build_scrapy_settings(), install_root_handler=False)

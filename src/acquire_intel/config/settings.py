@@ -103,6 +103,14 @@ class Settings(BaseSettings):
     deal_window_days: int = 90
     """Lookback window (days) for a product's recent high when detecting deals."""
 
+    # --- scheduler + admin crawl trigger (ADR-0007/0016, docs/08 §4, T4.5) ---
+    admin_rate_limit_per_minute: int = 6
+    """Max ``POST /admin/crawl`` calls per rolling minute before a 429 (docs/08 §4)."""
+    scheduler_enabled: bool = False
+    """Start the in-process APScheduler in the API. Off by default (opt-in for operator/demo)."""
+    scheduler_interval_seconds: int = 3600
+    """Default per-source crawl interval; overridable via ``crawl_policy.schedule_seconds``."""
+
     # --- monitoring: per-source health classification (docs/07 §2 & §4, T4.4) ---
     health_recent_runs: int = 5
     """How many recent runs per source feed the ban-rate window + last-run signals."""

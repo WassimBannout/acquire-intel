@@ -187,7 +187,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 - **Acceptance:** correct classification over seeded runs; ban-rate exposed.
 - **Verify:** integration tests. (FR-10)
 
-### T4.5 — Scheduler + admin crawl
+### [x] T4.5 — Scheduler + admin crawl
 - **Goal:** APScheduler per-source schedules; token-gated `POST /admin/crawl`; CLI parity.
 - **Acceptance:** scheduled tick triggers a crawl; no token → 401; token → 202.
 - **Verify:** integration tests; manual trigger. (FR-15, ADR-0007, docs/08)

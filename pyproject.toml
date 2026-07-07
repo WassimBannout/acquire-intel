@@ -19,6 +19,7 @@ dependencies = [
     "scrapy-playwright>=0.0.40", # T2.1: JS-rendered HTML extractor (ADR-0002)
     "structlog>=24.1",          # T0.4: structured JSON logging with run_id (docs/07)
     "flask>=3.0",               # T0.5: read/serve API + dashboard (ADR-0007)
+    "apscheduler>=3.10",        # T4.5: in-process per-source crawl schedules (ADR-0007/0016)
 ]
 
 [project.scripts]
@@ -103,6 +104,16 @@ files = ["src"]
 [[tool.mypy.overrides]]
 module = ["scrapy_playwright.*", "playwright.*"]
 ignore_missing_imports = true
+
+# APScheduler ships no type information; the scheduler module unavoidably surfaces its
+# Scheduler type in signatures, so relax the unimported-Any rule for just that module.
+[[tool.mypy.overrides]]
+module = ["apscheduler.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["acquire_intel.acquisition.scheduler"]
+disallow_any_unimported = false
 
 # --- Pytest ------------------------------------------------------------------
 [tool.pytest.ini_options]
