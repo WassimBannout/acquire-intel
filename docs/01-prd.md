@@ -127,15 +127,15 @@ Priority: P0 launch-blocking, P1 important, P2 nice-to-have. IDs map to `plan/ba
 
 ## 8. Implementation status
 
-*Snapshot as of 2026-07-06. Kept in sync with `plan/backlog.md` and the "Current status"
+*Snapshot as of 2026-07-07. Kept in sync with `plan/backlog.md` and the "Current status"
 section of `CLAUDE.md`; those are the source of truth for task-level state.*
 
 ### Progress at a glance
 
-**How far along: 19 / 28 backlog tasks complete (~68%); 3 of 5 milestones gated; M3 (the centerpiece) underway.**
+**How far along: 20 / 28 backlog tasks complete (~71%); 3 of 5 milestones gated; M3 (the centerpiece) underway, now 4/6.**
 
 ```
-Done  ███████████████████████████░░░░░░░░░░░░░  68%   (M0 ✅  M1 ✅  M2 ✅  M3 🟡  M4 ⬜)
+Done  ████████████████████████████░░░░░░░░░░░░  71%   (M0 ✅  M1 ✅  M2 ✅  M3 🟡  M4 ⬜)
 ```
 
 | Phase | Tasks | Status | Delivers |
@@ -143,7 +143,7 @@ Done  ████████████████████████�
 | **M0 — Foundation** | 6 / 6 | ✅ Gated | uv/Docker/Postgres, config boundary, Scrapy + Flask skeletons, CI, `/health` |
 | **M1 — First REST slice** | 7 / 7 | ✅ Gated | one command: crawl → validate → normalize → dedup → persist → serve, with freshness |
 | **M2 — More techniques** | 3 / 3 | ✅ Gated | all three kinds (REST/HTML/GraphQL) feed the identical pipeline + storage → canonical products |
-| **M3 — Resilience + harness** | 3 / 6 | 🟡 Underway | harness (T3.1) + ban classifier (T3.2) + throttle/backoff/circuit-breaker (T3.3) done; proxy/identity rotation, quality gates next — **the centerpiece** |
+| **M3 — Resilience + harness** | 4 / 6 | 🟡 Underway | harness (T3.1) + ban classifier (T3.2) + throttle/backoff/circuit-breaker (T3.3) + proxy/identity rotation (T3.4) done; data-quality gates + full-scenario integration next — **the centerpiece** |
 | **M4 — Intelligence + hardening** | 0 / 6 | ⬜ Not started | deals/drift detection, dashboard, scheduler + admin crawl, metrics, demo/CI polish |
 
 The foundation and the first end-to-end REST slice are done and proven; a single command crawls a
@@ -151,16 +151,19 @@ source through the full pipeline and the API serves it with freshness, and all t
 techniques — a paginated **REST** extractor, a Playwright-rendered **HTML** extractor, and a
 cursor-paginated **GraphQL** extractor — now land under the same contract, feeding one shared
 pipeline + storage (M2 gated). Now the **anti-bot resilience layer (M3) — the largest and
-highest-value phase — is underway**: its adversarial mock harness (the deterministic adversary
-every resilience task is proven against) has landed, with the classifier, throttle/backoff,
-proxy/identity rotation, and quality gates still to come, then the intelligence/hardening layer
-(M4). By task count ~61%; **effort-weighted it is nearer the midpoint**, since M3 alone is the
+highest-value phase — is well underway**: its adversarial mock harness (the deterministic adversary
+every resilience task is proven against) has landed, and **four of its six tasks are done** — the
+ban/anti-bot **classifier** (never cache garbage), **adaptive throttle + Retry-After backoff +
+per-domain circuit breaker**, and the **proxy pool + coherent identity rotation** — leaving only the
+**data-quality gates** and the **full-scenario integration gate**, then the intelligence/hardening
+layer (M4). By task count ~71%; **effort-weighted it is around the midpoint**, since M3 alone is the
 single biggest chunk of the remaining work and the core competency this project exists to
 demonstrate. Per-milestone, per-task, and per-FR detail follows.
 
 **Overall: M0 (Foundation), M1 (first REST slice), and M2 (more techniques) complete and gated —
 all three acquisition kinds (REST/HTML/GraphQL) now feed one pipeline; M3 (the resilience
-centerpiece) is underway — its adversarial mock harness now lands.** The platform boots, migrates, and answers
+centerpiece) is 4/6 done — harness, ban classifier, throttle/backoff/circuit-breaker, and
+proxy/identity rotation all land, with data-quality gates + integration remaining.** The platform boots, migrates, and answers
 `/health`; the canonical data contracts exist and are parity-tested; and a single command,
 `acquire-intel crawl demo_rest`, drives the **whole slice**: the REST extractor fetches a
 paginated `products.json` → the Scrapy item pipeline validates → normalizes (Decimal money,
@@ -178,7 +181,14 @@ and follows cursor pagination (T2.2) — both under the same `SourceExtractor` c
 the milestone with a **three-kinds parity gate** (T2.3): a parameterized integration test drives
 all three fixture sets through the *one* shared normalize + persistence path into Postgres →
 identical canonical products, backed by a structural guard that the shared layers name no concrete
-source. **M2 gate passed.** Next is M3, the anti-bot resilience layer.
+source. **M2 gate passed.** **M3, the anti-bot resilience layer, is now 4/6:** on top of the
+adversarial harness, the response **classifier** gates every download (a block/CAPTCHA/empty page
+is recorded as a `BanEvent` and dropped, never stored), an **adaptive throttle + Retry-After-aware
+full-jitter backoff + per-domain circuit breaker** govern rate and failure, and a **proxy pool +
+coherent identity rotation** recover from a persistent block by escalating from the honest contact
+UA to a coherent browser bundle (fresh cookie jar) — proven against the harness `block_after_n` and
+`cookie_wall` scenarios. Remaining: data-quality gates (T3.5) and the full-scenario integration gate
+(T3.6).
 
 ### Milestone progress
 
@@ -187,7 +197,7 @@ source. **M2 gate passed.** Next is M3, the anti-bot resilience layer.
 | **M0 Foundation** | ✅ Complete | Gate passed: `docker compose up` + `uv run` boot; `/health` reflects DB; strict ruff/mypy/pytest green; CI wired. |
 | **M1 First vertical slice (REST)** | ✅ Complete | Gate passed: `acquire-intel crawl demo_rest` → observations in Postgres → API serves them with freshness (E2E test + live curl); strict ruff/mypy/pytest green. |
 | **M2 More techniques (HTML/GraphQL)** | ✅ Complete | Gate passed: REST/HTML/GraphQL all produce canonical products through one pipeline + storage (parameterized parity test + source-agnostic structural guard); strict ruff/mypy/pytest green. |
-| **M3 Resilience + harness** | 🟡 In progress | The centerpiece. T3.1 adversarial mock harness ✅ done. Next: T3.2 ban classifier → throttle/backoff → proxy/identity rotation → quality gates → M3 gate. |
+| **M3 Resilience + harness** | 🟡 In progress | The centerpiece, 4/6. T3.1 harness ✅, T3.2 ban classifier ✅, T3.3 throttle/backoff/circuit-breaker ✅, T3.4 proxy/identity rotation ✅. Next: T3.5 data-quality gates → T3.6 full-scenario integration → M3 gate. |
 | **M4 Intelligence + hardening** | ⬜ Not started | — |
 
 ### M1 progress (REST slice)
@@ -217,7 +227,7 @@ source. **M2 gate passed.** Next is M3, the anti-bot resilience layer.
 | T3.1 — Adversarial mock harness | ✅ Done | `harness/` (new top-level dev/test package, not in the wheel): a self-contained Flask mock server (ADR-0009) selecting scenarios by path — `happy`, `rate_limited` (429+Retry-After burst → 200), `block_after_n` (403 past a per-identity budget; fresh identity resets it), `captcha` (200 challenge page), `cookie_wall` (403+Set-Cookie until the cookie is carried), `soft_ban` (200+empty), `drift` (renamed item fields). Deterministic: count-based scenarios key on identity (`X-Harness-Identity`→`User-Agent`→addr) and `POST /__admin__/reset` clears state. `uv run python -m harness.server` (see `harness/README.md`). 12 self-tests + verified live via curl; `mypy src harness` + pytest `pythonpath` wired. |
 | T3.2 — Ban / anti-bot classifier | ✅ Done | `resilience/classifier.py` (pure `classify(status, body)` → `ok/rate_limited/blocked/captcha/empty`: CAPTCHA markers win over status; 429→rate_limited; other non-2xx→blocked; 2xx empty body→empty, but a non-empty empty-array→ok) + `resilience/middleware.py` (`BanDetectionMiddleware` @585): `ok` passes through, a ban is recorded (stats `acquire/ban_events`+`acquire/ban/{kind}`, log, `BanEvent` on the spider sink) and **dropped via `IgnoreRequest`** so it never reaches an extractor; robots.txt never gated. 19 classifier tests (incl. all 7 harness scenarios) + 6 middleware tests; verified in the real engine (captcha→0 items/1 ban, happy→3 items/0 bans). |
 | T3.3 — Throttle, backoff, circuit-breaker | ✅ Done | AutoThrottle + per-domain caps from config; `resilience/backoff.py` (pure full-jitter exponential honouring `Retry-After`) + `BackoffRetryMiddleware` @585 retries 429/503 with a real `await asyncio.sleep`, bounded (then falls through to the ban gate); `resilience/circuit.py` (pure per-domain state machine) + `CircuitBreakerMiddleware` @583 trips on repeated `blocked/captcha/empty` and short-circuits an open domain, with a half-open probe after cool-down. 43 tests (backoff maths, circuit FSM, both middlewares incl. the real harness rate-limit sequence) + verified in the real engine (rate_limited → 3 items, 2 retries, 0 bans). |
-| T3.4 — Proxy manager + identity rotation | ⬜ Todo | Proxy pool (health/cooldown, zero-proxy ok); coherent identity bundles rotating on ban/session. |
+| T3.4 — Proxy manager + identity rotation | ✅ Done | `resilience/proxy.py` (`ProxyPool`: pure, clock-injectable round-robin over healthy proxies, per-proxy tallies, banned → quarantine cool-down, **zero-proxy = direct** and all-cooling-down degrades to direct; env-supplied, never hardcoded) + `resilience/identity.py` (`BrowserProfile`/`IdentityPool`: **coherent** bundles — UA + matching client-hints/headers/viewport/locale — rotated whole with a fresh per-identity cookie jar). `IdentityRotationMiddleware` @582 is **respectful by default** (honest contact UA until a block), then **escalates** to a browser identity + fresh proxy on a persistent block (resets the harness's per-identity budget), retries a `Set-Cookie` cookie wall with the *same* identity (replays the session cookie), and never rotates on rate-limits (backoff owns those); bounded per request, then falls to the ban gate. 18 tests incl. real-harness `block_after_n` + `cookie_wall`. ADR-0011. |
 | T3.5 — Data-quality gates | ⬜ Todo | Shape/range/volume/continuity gates → quarantine + record, never silent-store. |
 | T3.6 — Resilience integration | ⬜ Todo | Full crawl across every harness scenario; `ban_events` recorded; **zero** blocked/invalid rows persisted. M3 gate. |
 
@@ -245,8 +255,8 @@ source. **M2 gate passed.** Next is M3, the anti-bot resilience layer.
 | FR-2 (REST extractor) | ✅ Done (REST) | `demo_rest` (`kind="rest"`, T1.3) walks a paginated Shopify-style `products.json` → `RawProduct`s and is now wired through the full pipeline → persistence → API, proven by the E2E gate against a fixture server (T1.7). Additional real REST sources are additive on the same contract. |
 | FR-3 (HTML/Playwright) | ✅ Done | `demo_html` (`kind="html"`, T2.1) renders a JS-built page via `scrapy-playwright` (waits for the grid) and maps rendered HTML → `RawProduct`s with resilient `data-*` selectors; selector drift → yields nothing. Fixture-tested browser-free + a real Chromium render smoke test. Additional HTML sources are additive on the same contract. |
 | FR-4 (GraphQL extractor) | ✅ Done | `demo_graphql` (`kind="graphql"`, T2.2) builds a typed `Products($first,$after)` query, POSTs it as JSON (`JsonRequest`), and follows cursor pagination via `pageInfo.endCursor`; nodes → `RawProduct`s with per-node currency; malformed/`errors`/wrong-shape → nothing. Fixture-tested (valid → expected, cursor follow/stop, 4× rejection). |
-| FR-5 (resilience layer) | 🟡 In progress | M3 centerpiece. **Adaptive throttling + backoff + circuit-breaking done** (T3.3): AutoThrottle + per-domain caps; Retry-After-aware full-jitter backoff retrying 429/503 (bounded); per-domain breaker that trips on repeated blocks and cools down. Proven against the harness + in the real engine. **Proxy pool + identity/fingerprint rotation** land in T3.4. |
-| FR-6 (ban detection) | 🟡 In progress | **Detection + gating done** (T3.2): `classify` labels every response `ok/rate_limited/blocked/captcha/empty` (status + body markers + empty-body) and `BanDetectionMiddleware` records a `BanEvent` and drops any ban via `IgnoreRequest` — a block/CAPTCHA/empty page is never stored. Proven against all 7 harness scenarios + in the real engine. The **reaction** (rotate identity / back off instead of dropping) lands in T3.3/T3.4. |
+| FR-5 (resilience layer) | ✅ Done | M3 centerpiece, fully delivered across T3.3–T3.4. **Throttle/backoff/circuit-breaking** (T3.3): AutoThrottle + per-domain caps; Retry-After-aware full-jitter backoff retrying 429/503 (bounded); per-domain breaker that trips on repeated blocks and cools down. **Proxy pool + coherent identity/fingerprint rotation** (T3.4): a health-tracking `ProxyPool` (quarantine cool-down, zero-proxy = direct) + an `IdentityPool` of coherent UA/header/client-hint/cookie/viewport bundles, escalating from the honest contact UA to a fresh browser identity + proxy on a persistent block. Proven against the harness (`rate_limited`/`block_after_n`/`cookie_wall`) + in the real engine. |
+| FR-6 (ban detection) | ✅ Done | **Detection + gating** (T3.2): `classify` labels every response `ok/rate_limited/blocked/captcha/empty` (status + body markers + empty-body) and `BanDetectionMiddleware` records a `BanEvent` and drops any ban via `IgnoreRequest` — a block/CAPTCHA/empty page is never stored. **Reaction** now closes the loop: rate-limits back off (T3.3), and a persistent block **rotates identity/proxy and retries** (T3.4) instead of just dropping. Proven against all 7 harness scenarios + in the real engine. |
 | FR-7 (boundary validation) | ✅ Done | Config + extractor output validated via `RawProduct` (`extra="forbid"`, T1.1); the pipeline re-asserts the boundary and rejects+counts unmappable items, never persisting garbage (T1.4) — now exercised in a live crawl (T1.7). Deeper data-quality gates (volume/range/continuity) are FR-9/M3. |
 | FR-8 (normalize + dedup pipeline) | ✅ Done | Scrapy item pipeline normalizes `RawProduct` → `Product` + `PriceObservation` (Decimal money, canonical id, currency fallback) and dedups within a run, rejecting/counting invalid (T1.2/T1.4, ADR-0010); its output is persisted by `PersistencePipeline` and proven end-to-end (T1.7). |
 | FR-9 (data-quality gates) | 🔴 Not started | M3. |
@@ -266,8 +276,10 @@ yet delivered end-to-end) ·
 ## 9. Open questions (resolve as ADRs)
 1. Concrete v1 sources per technique (candidate: Shopify `products.json` REST + Storefront
    GraphQL + a JS-rendered store page). Legal check per `docs/08`.
-2. Proxy provider abstraction — env-configured pool vs. a single proxy; harness works
-   without real proxies.
+2. ~~Proxy provider abstraction — env-configured pool vs. a single proxy; harness works
+   without real proxies.~~ **Resolved (ADR-0011):** an env-configured `PROXY_URLS` pool with
+   per-proxy health/quarantine; an empty pool = direct connection, so the harness needs no real
+   proxies.
 3. Scheduler: in-process (APScheduler) vs. external cron/container. See ADR.
 4. Dashboard: server-rendered Jinja + Chart.js vs. a small SPA. Default: Jinja + Chart.js.
 

@@ -123,8 +123,8 @@ uv run python -m harness.server      # start the adversarial mock server
 
 **Phase 0, Phase 1 (M1) & Phase 2 (M2) complete (all merged to `main`); Phase 3 (M3) — the
 resilience centerpiece — in progress: adversarial mock harness (T3.1 ✅), ban classifier
-(T3.2 ✅), and throttle/backoff/circuit-breaker (T3.3 ✅) land; proxy + identity rotation (T3.4)
-next.** All three acquisition kinds (REST/HTML/GraphQL) feed one pipeline, and the
+(T3.2 ✅), throttle/backoff/circuit-breaker (T3.3 ✅), and proxy + identity rotation (T3.4 ✅)
+land; data-quality gates (T3.5) next.** All three acquisition kinds (REST/HTML/GraphQL) feed one pipeline, and the
 first REST vertical slice runs end to end (crawl → pipeline → Postgres → API with freshness). The
 app is built
 **nested in this repo** (not a sibling `../acquire-intel-app`) — one coherent codebase, per the
@@ -360,7 +360,30 @@ products from fixtures through one pipeline + storage; strict ruff/mypy/pytest g
   bans). Full suite **213 passed / 0 skipped**; E2E happy path unaffected. No new ADR (ratified by
   ADR-0005).
 
-**Next: T3.4 — proxy manager + identity rotation**: a proxy pool (health/cooldown, zero-proxy =
-direct) and coherent identity bundles (UA + matching headers + cookie jar + Playwright
-fingerprint) that rotate on ban or per session — proven against the harness `block_after_n`
-(rotate identity → success with a fresh identity) and `cookie_wall` scenarios.
+- **T3.4 — Proxy manager + identity rotation ✅** (ADR-0011, docs/04 §2.1–2.2, docs/08).
+  **Proxy pool**: `resilience/proxy.py` is a pure, clock-injectable `ProxyPool` — round-robin over
+  healthy proxies with per-proxy success/failure tallies; a banned proxy is quarantined for a
+  cool-down and skipped until it elapses; a **zero-proxy pool = direct connection** (right for
+  local runs + the harness), and if every proxy is cooling down it degrades to direct rather than
+  fail the crawl. Proxies come only from config/env (`PROXY_URLS`), never hardcoded. **Identity**:
+  `resilience/identity.py` models a *coherent* bundle (`BrowserProfile`: UA + the header profile /
+  client hints / viewport / locale that browser genuinely sends — a mismatched bundle is itself a
+  bot signal) and a deterministic `IdentityPool` that rotates the **whole** bundle at once with a
+  fresh per-identity cookie jar (a rotated identity never carries the abandoned one's cookies).
+  **Wiring**: `IdentityRotationMiddleware` (@582, between the circuit breaker @583 and the ban gate
+  @581) is **respectful by default** — keeps the honest contact `USER_AGENT` and stamps no browser
+  identity until a source actively blocks us (only attaches a pool proxy). On a *persistent* block
+  (`blocked`/`captcha`/`empty`) it **escalates** — swaps to a coherent browser identity + fresh
+  proxy and retries rather than letting the ban gate drop it (the harness keys its budget on the
+  identity, so a fresh one resets it); a `blocked`+`Set-Cookie` **cookie wall** is instead retried
+  with the *same* identity so `CookiesMiddleware` replays the session cookie; `rate_limited` never
+  rotates (backoff owns it). Both recoveries are bounded per request (`ROTATION_MAX_ATTEMPTS`), then
+  fall through to the ban gate. Proven: 18 tests incl. the **real harness** `block_after_n` (rotate
+  → data served) and `cookie_wall` (replay cookie) sequences + proxy health/quarantine FSM. Full
+  suite **231 passed / 0 skipped** with the DB up; ruff + mypy clean; E2E happy path unaffected.
+  **New: ADR-0011** (proxy pool + coherent identity rotation, escalate-on-block).
+
+**Next: T3.5 — data-quality gates**: pipeline gates (shape via pydantic, price range/plausibility,
+volume ±X% vs. the prior run, per-product continuity) that quarantine/flag anomalies and record
+them — never silently store garbage — proven with unit + integration tests, then T3.6 (full-scenario
+harness integration) closes the M3 gate.

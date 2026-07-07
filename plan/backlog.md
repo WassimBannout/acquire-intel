@@ -141,7 +141,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
   breaker (cool-down).
 - **Verify:** harness tests; unit tests for backoff math/jitter bounds. (FR-5)
 
-### T3.4 — Proxy manager + identity rotation
+### [x] T3.4 — Proxy manager + identity rotation
 - **Goal:** proxy pool manager (health/cooldown, zero-proxy ok); coherent identity bundles
   (UA/headers/cookies/fingerprint) rotating on ban/session.
 - **Acceptance:** against harness 403-after-N, identity/proxy rotates → success; rotations
