@@ -127,15 +127,15 @@ Priority: P0 launch-blocking, P1 important, P2 nice-to-have. IDs map to `plan/ba
 
 ## 8. Implementation status
 
-*Snapshot as of 2026-07-07. Kept in sync with `plan/backlog.md` and the "Current status"
+*Snapshot as of 2026-07-08. Kept in sync with `plan/backlog.md` and the "Current status"
 section of `CLAUDE.md`; those are the source of truth for task-level state.*
 
 ### Progress at a glance
 
-**How far along: 24 / 28 backlog tasks complete (~86%); 4 of 5 milestones gated; M3 complete, M4 (intelligence + hardening) underway (2/6).**
+**How far along: 25 / 28 backlog tasks complete (~89%); 4 of 5 milestones gated; M3 complete, M4 (intelligence + hardening) underway (3/6).**
 
 ```
-Done  ██████████████████████████████████░░░░░░  86%   (M0 ✅  M1 ✅  M2 ✅  M3 ✅  M4 🟡)
+Done  ████████████████████████████████████░░░░  89%   (M0 ✅  M1 ✅  M2 ✅  M3 ✅  M4 🟡)
 ```
 
 | Phase | Tasks | Status | Delivers |
@@ -144,7 +144,7 @@ Done  ████████████████████████�
 | **M1 — First REST slice** | 7 / 7 | ✅ Gated | one command: crawl → validate → normalize → dedup → persist → serve, with freshness |
 | **M2 — More techniques** | 3 / 3 | ✅ Gated | all three kinds (REST/HTML/GraphQL) feed the identical pipeline + storage → canonical products |
 | **M3 — Resilience + harness** | 6 / 6 | ✅ Gated | harness (T3.1) + ban classifier (T3.2) + throttle/backoff/circuit-breaker (T3.3) + proxy/identity rotation (T3.4) + data-quality gates (T3.5) + full-scenario integration (T3.6) — **the centerpiece**: recovery + ban ledger + zero garbage proven end-to-end vs. the harness |
-| **M4 — Intelligence + hardening** | 2 / 6 | 🟡 Underway | price history + deals + `GET /deals` (T4.1) + change/selector-drift detection (T4.2) done; dashboard, scheduler + admin crawl, metrics, demo/CI polish next |
+| **M4 — Intelligence + hardening** | 3 / 6 | 🟡 Underway | price history + deals + `GET /deals` (T4.1) + change/selector-drift detection (T4.2) + Jinja/Chart.js dashboard (T4.3) done; /health/sources + metrics, scheduler + admin crawl, demo/CI polish next |
 
 The foundation and the first end-to-end REST slice are done and proven; a single command crawls a
 source through the full pipeline and the API serves it with freshness, and all three acquisition
@@ -158,10 +158,12 @@ per-domain circuit breaker**, the **proxy pool + coherent identity rotation**, t
 gates** (range/continuity/volume → quarantine, never silent-store), and the **full-scenario
 integration gate** (T3.6) that proves the whole stack recovers, records the ban audit trail, and
 persists zero garbage end-to-end against the harness. The remaining phase, the intelligence/hardening
-layer (M4), is now underway (2/6) — **price history + deals** (`GET /deals`, T4.1) and
-**change/selector-drift detection** (T4.2, a drifted source raises a `flagged` run) have landed. By
-task count ~86%; the single biggest chunk of work — the core competency this project
-exists to demonstrate — is delivered and gated. Per-milestone, per-task, and per-FR detail follows.
+layer (M4), is now underway (3/6) — **price history + deals** (`GET /deals`, T4.1),
+**change/selector-drift detection** (T4.2, a drifted source raises a `flagged` run), and a
+**light Jinja + Chart.js dashboard** (T4.3, per-product price charts + a crawler-health panel with
+ban-rate trend and identity/proxy rotations) have landed. By task count ~89%; the single biggest
+chunk of work — the core competency this project exists to demonstrate — is delivered and gated.
+Per-milestone, per-task, and per-FR detail follows.
 
 **Overall: M0 (Foundation), M1 (first REST slice), and M2 (more techniques) complete and gated —
 all three acquisition kinds (REST/HTML/GraphQL) now feed one pipeline; M3 (the resilience
@@ -206,7 +208,7 @@ response ever becomes a `price_observation`.
 | **M1 First vertical slice (REST)** | ✅ Complete | Gate passed: `acquire-intel crawl demo_rest` → observations in Postgres → API serves them with freshness (E2E test + live curl); strict ruff/mypy/pytest green. |
 | **M2 More techniques (HTML/GraphQL)** | ✅ Complete | Gate passed: REST/HTML/GraphQL all produce canonical products through one pipeline + storage (parameterized parity test + source-agnostic structural guard); strict ruff/mypy/pytest green. |
 | **M3 Resilience + harness** | ✅ Complete | Gate passed: the whole resilience stack recovers from rate-limits/blocks/soft-bans, records the `ban_events` audit trail, and persists **0** blocked/invalid/quarantined rows — proven end-to-end vs. the harness (T3.1–T3.6). strict ruff/mypy/pytest green (256 passed). |
-| **M4 Intelligence + hardening** | 🟡 In progress | Price history + deals (`GET /deals`, T4.1) ✅; change/selector-drift detection (T4.2) ✅. Next: dashboard → /health/sources + metrics → scheduler + admin crawl → demo/CI polish. |
+| **M4 Intelligence + hardening** | 🟡 In progress | Price history + deals (`GET /deals`, T4.1) ✅; change/selector-drift detection (T4.2) ✅; Jinja/Chart.js dashboard (T4.3) ✅ (284 passed). Next: /health/sources + metrics → scheduler + admin crawl → demo/CI polish. |
 
 ### M1 progress (REST slice)
 
@@ -245,7 +247,7 @@ response ever becomes a `price_observation`.
 |------|-------|-------|
 | T4.1 — Price history + deals | ✅ Done | `analytics/deals.py` (pure `compute_deal`/`rank_deals` over `PricePoint`s): a **deal** = a product whose latest price is ≥ `deal_min_drop_pct` (default 10%) below its **recent high** (max in a `deal_window_days`, default 90, window of the product's *own* history) — never cross-product. `GET /deals` ranks by drop magnitude (ties by `product_id` → deterministic), `limit` 1–50/default 20, optional `source`; each deal carries `previousPrice`/`currentPrice`/`dropPct`/`since` under the shared freshness envelope. New `PriceObservationRepository.history_since` + `ProductRepository.get_many`; `DealOut`/`DealsResponse` serializers; `deals_bp` on the API base path. 12 tests (9 pure boundary + 3 Flask-client vs. Postgres). **New: ADR-0013**. |
 | T4.2 — Change / selector-drift detection | ✅ Done | Extractors record `entries_seen`/`entries_mapped` per page (`acquisition/telemetry.py`); the runner runs the pure `analytics/drift.py::assess_drift` and ledgers a **field-drift** run (envelope intact but items unmappable — renamed fields) as a new terminal status `flagged` + a `crawl.drift_detected` alert; **container drift** (nothing even seen) stays covered by the T3.5 volume gate. Precedence: failed > flagged > quarantined > partial > success. Proven end-to-end: a real crawl of the harness `drift` scenario → 0 observations + `status=flagged`, plus pure boundary tests. **New: ADR-0014**. |
-| T4.3 — Dashboard | ⬜ Todo | Price-history + crawler-health panels. |
+| T4.3 — Dashboard | ✅ Done | Light server-rendered **Jinja + Chart.js** dashboard over the read layer (ADR-0007), mounted at the site root (JSON API stays under `API_BASE_PATH`). `GET /` renders a **crawler-health panel** (per source: last run status, freshness vs. `stale_after`, items ok/rejected, ban count, identity/proxy **rotations**, a ban-events **sparkline**) + the collected-products table with empty states; `GET /products/<id>` renders a price chart fed **client-side** from `/products/{id}/price-history` (no duplicate serialization) with a window selector + loading/empty states; unknown id → a 404 HTML page. Thin routes: health assembly is the pure `analytics/health.py::summarize_source` (freshness rule, rotation tally, oldest→newest trend), unit-testable without a DB; new `CrawlRunRepository.recent` + `BanEventRepository.counts_by_action`. Chart.js 4.4.3 **vendored** (offline demo); theme-aware CSS. 9 tests (5 pure + 4 Flask view); 284 passed / 0 skipped. Verified live vs. the harness. |
 | T4.4 — /health/sources + metrics | ⬜ Todo | Per-source health, freshness, ban-rate, proxy-health (docs/07). |
 | T4.5 — Scheduler + admin crawl | ⬜ Todo | Scheduled collection + `POST /admin/crawl`. |
 | T4.6 — Demo & CI/CD polish | ⬜ Todo | End-to-end demo + CI/CD hardening. |
@@ -279,11 +281,11 @@ response ever becomes a `price_observation`.
 | FR-7 (boundary validation) | ✅ Done | Config + extractor output validated via `RawProduct` (`extra="forbid"`, T1.1); the pipeline re-asserts the boundary and rejects+counts unmappable items, never persisting garbage (T1.4) — now exercised in a live crawl (T1.7). Deeper data-quality gates (range/continuity/volume) now land in FR-9/T3.5. |
 | FR-8 (normalize + dedup pipeline) | ✅ Done | Scrapy item pipeline normalizes `RawProduct` → `Product` + `PriceObservation` (Decimal money, canonical id, currency fallback) and dedups within a run, rejecting/counting invalid (T1.2/T1.4, ADR-0010); its output is persisted by `PersistencePipeline` and proven end-to-end (T1.7). |
 | FR-9 (data-quality gates) | ✅ Done | T3.5 (ADR-0012): shape (upstream `RawProduct`/`normalize`) + **range** (plausible price band) + **continuity** (per-product jump vs. last committed price) drop bad items inline (counted, never persisted), and a run-atomic **volume** gate quarantines a whole run — committing **nothing** — when its surviving count strays from the source baseline, recorded as `crawl_runs.status="quarantined"`. Proven by unit + real-Postgres integration tests (a volume-anomalous run stores zero rows). |
-| FR-10 (crawl-run ledger) | ✅ Done | The runner opens a `crawl_runs` row before the crawl and closes it with a terminal status (`success`/`partial`/`failed`/`quarantined`) + `items_ok`/`items_rejected` from Scrapy stats, even on crash (T1.5/T1.7/T3.5). **Ban-event recording now lands** (T3.6): a `BanEventRepository` persists each run's detected bans to `ban_events` with the count on the ledger row. Health/freshness derivation over the ledger (dashboards/metrics) is M4. |
+| FR-10 (crawl-run ledger) | ✅ Done | The runner opens a `crawl_runs` row before the crawl and closes it with a terminal status (`success`/`partial`/`failed`/`quarantined`) + `items_ok`/`items_rejected` from Scrapy stats, even on crash (T1.5/T1.7/T3.5). **Ban-event recording now lands** (T3.6): a `BanEventRepository` persists each run's detected bans to `ban_events` with the count on the ledger row. **Health/freshness derivation over the ledger is now surfaced** by the T4.3 dashboard's crawler-health panel (last run status, freshness vs. `stale_after`, items ok/rejected, ban count, identity/proxy rotations, ban-events trend); the formal per-source health classification + `/health/sources` + metrics catalog is T4.4. |
 | FR-11 (adversarial harness) | ✅ Done | `harness/` (T3.1, ADR-0009): a self-contained Flask mock server with path-selected, deterministic scenarios — `happy`/`rate_limited`/`block_after_n`/`captcha`/`cookie_wall`/`soft_ban`/`drift` — keyed per-identity with a `__admin__/reset` control. 12 self-tests + verified live; `uv run python -m harness.server`. The resilience tasks (T3.2–T3.6) are proven against it. |
 | FR-12 (price-history time-series) | ✅ Done | Append-only `price_observations` is populated by a live crawl (T1.7), proven immutable across re-runs (T1.5), and served over HTTP as `GET /products/{id}/price-history` with freshness + windowing (T1.6) — the full capture→serve path is exercised end-to-end. |
 | FR-13 (Flask API) | 🟡 Substantial | App factory + `/health` (M0) plus read routes `GET /products`, `GET /products/{id}/price-history` (T1.6), and now `GET /deals` (T4.1) — spec-conformant camelCase, freshness envelope, 404 problem+json, response shapes validated vs pydantic models. `/admin/crawl` + `/health/sources` routes pending M4. |
-| FR-14 (dashboard) | 🔴 Not started | M4. |
+| FR-14 (dashboard) | ✅ Done | T4.3 (ADR-0007): a light server-rendered **Jinja + Chart.js** dashboard at the site root — `GET /` shows a **crawler-health panel** (per source: last run status, freshness, items ok/rejected, ban count, identity/proxy rotations, ban-events sparkline) + the collected-products table (empty states included), and `GET /products/<id>` shows a per-product **price chart** fed client-side from the price-history JSON (window selector, loading/empty states; unknown id → 404 page). Health assembly is pure (`analytics/health.py`), Chart.js is vendored (offline), CSS is theme-aware; 9 tests + verified live vs. the harness. The full healthy/degraded/stale/failing classifier + metrics catalog is T4.4. |
 | FR-15 (scheduler + admin trigger) | 🔴 Not started | M4. |
 | FR-16 (drift detection) | ✅ Done | T4.2 (ADR-0014): a source whose output *shape* shifted (renamed fields → items seen but unmappable) raises a `flagged` run, not a silent near-empty crawl; **container drift** (nothing seen) is caught by the T3.5 volume gate. `assess_drift` is pure; proven by a real harness-`drift` crawl (→ `status=flagged`) + unit tests. Alert, don't crash. |
 | FR-17 (deal detection) | ✅ Done | T4.1 (ADR-0013): a **deal** = a product whose latest price is ≥ `deal_min_drop_pct` below its recent high (max in a `deal_window_days` window of its *own* history), served at `GET /deals` ranked by drop magnitude with `source`/`limit` filters + freshness. Pure, deterministic math (`analytics/deals.py`) proven by unit + Flask-client integration tests. |
@@ -300,7 +302,9 @@ yet delivered end-to-end) ·
    per-proxy health/quarantine; an empty pool = direct connection, so the harness needs no real
    proxies.
 3. Scheduler: in-process (APScheduler) vs. external cron/container. See ADR.
-4. Dashboard: server-rendered Jinja + Chart.js vs. a small SPA. Default: Jinja + Chart.js.
+4. ~~Dashboard: server-rendered Jinja + Chart.js vs. a small SPA. Default: Jinja + Chart.js.~~
+   **Resolved (ADR-0007, delivered in T4.3):** server-rendered Jinja + Chart.js (Chart.js
+   vendored for an offline demo), mounted at the site root over the read layer.
 
 ## 10. Explicit anti-requirements
 - **Never** persist a response that failed validation or a data-quality gate.
