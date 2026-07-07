@@ -23,6 +23,7 @@ from acquire_intel.storage.models import CrawlRun, PriceObservation, Product, So
 
 if TYPE_CHECKING:
     from datetime import datetime
+    from decimal import Decimal
     from typing import Any
 
     from sqlalchemy.orm import Session
@@ -169,6 +170,20 @@ class PriceObservationRepository:
         )
         return {obs.product_id: obs for obs in rows}
 
+    def latest_amounts_for_source(self, source_id: str) -> dict[str, Decimal]:
+        """Latest committed price per product for a source (for the continuity gate, T3.5).
+
+        One row per product, the newest by ``captured_at`` (``DISTINCT ON``); used to preload
+        prior prices so a per-product jump can be judged without a query per item.
+        """
+        rows = self._session.execute(
+            select(PriceObservation.product_id, PriceObservation.amount)
+            .where(PriceObservation.source_id == source_id)
+            .order_by(PriceObservation.product_id, PriceObservation.captured_at.desc())
+            .distinct(PriceObservation.product_id)
+        ).all()
+        return {row.product_id: row.amount for row in rows}
+
     def count_for(self, product_id: str) -> int:
         """Number of observations recorded for a product."""
         return (
@@ -226,6 +241,25 @@ class CrawlRunRepository:
         if timings is not None:
             run.timings = timings
         self._session.flush()
+
+    def baseline_count(self, source_id: str, *, exclude_run_id: str) -> int | None:
+        """The most recent **committed** run's item count for a source (volume-gate baseline).
+
+        Considers only runs that actually committed data (``success``/``partial``) — a
+        ``failed``/``quarantined`` run committed nothing, so its count is not a baseline. Returns
+        ``None`` when the source has no committed history yet.
+        """
+        return self._session.scalar(
+            select(CrawlRun.items_ok)
+            .where(
+                CrawlRun.source_id == source_id,
+                CrawlRun.id != exclude_run_id,
+                CrawlRun.status.in_(("success", "partial")),
+                CrawlRun.finished_at.is_not(None),
+            )
+            .order_by(CrawlRun.finished_at.desc())
+            .limit(1)
+        )
 
     def get(self, run_id: str) -> CrawlRun | None:
         """Return the run by id, or ``None``."""

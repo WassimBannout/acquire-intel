@@ -44,6 +44,12 @@ def build_scrapy_settings() -> Settings:
             "ACQUIRE_PROXY_POOL": cfg.proxy_urls,
             "ACQUIRE_PROXY_COOLDOWN_SECONDS": cfg.proxy_cooldown_seconds,
             "ACQUIRE_ROTATION_MAX_ATTEMPTS": cfg.rotation_max_attempts,
+            # Data-quality gates (T3.5, docs/04 §3, ADR-0012). Prices carried as strings → Decimal.
+            "ACQUIRE_QUALITY_PRICE_MIN": str(cfg.quality_price_min),
+            "ACQUIRE_QUALITY_PRICE_MAX": str(cfg.quality_price_max),
+            "ACQUIRE_QUALITY_MAX_JUMP_RATIO": cfg.quality_max_jump_ratio,
+            "ACQUIRE_QUALITY_VOLUME_TOLERANCE": cfg.quality_volume_tolerance,
+            "ACQUIRE_QUALITY_VOLUME_MIN_BASELINE": cfg.quality_volume_min_baseline,
             # Playwright for JS-rendered `html` sources (ADR-0002). The handler delegates
             # non-`playwright` requests to the default downloader, so REST/GraphQL are
             # unaffected and no browser launches unless a request opts in via meta.
@@ -65,9 +71,11 @@ def build_scrapy_settings() -> Settings:
                 "acquire_intel.resilience.middleware.IdentityRotationMiddleware": 582,
                 "acquire_intel.resilience.middleware.BanDetectionMiddleware": 581,
             },
-            # Validate → normalize → dedup, then persist every surviving item (T1.4 → T1.7).
+            # Validate → normalize → dedup (300) → per-item quality gates (350) → buffer +
+            # volume-gate + persist at close (400) (T1.4 → T1.7 → T3.5, ADR-0012).
             "ITEM_PIPELINES": {
                 "acquire_intel.pipeline.item_pipeline.NormalizePipeline": 300,
+                "acquire_intel.pipeline.quality.QualityGatePipeline": 350,
                 "acquire_intel.pipeline.persistence.PersistencePipeline": 400,
             },
         },

@@ -23,7 +23,7 @@ from acquire_intel.acquisition.registry import get_spider, known_sources
 from acquire_intel.acquisition.scrapy_settings import build_scrapy_settings
 from acquire_intel.monitoring.logging import bind_run, configure_logging, get_logger
 from acquire_intel.pipeline.item_pipeline import STAT_ITEMS_REJECTED
-from acquire_intel.pipeline.persistence import STAT_ITEMS_PERSISTED
+from acquire_intel.pipeline.persistence import STAT_ITEMS_PERSISTED, STAT_QUALITY_QUARANTINED
 from acquire_intel.storage import CrawlRunRepository, SourceRepository, session_scope
 
 if TYPE_CHECKING:
@@ -84,7 +84,9 @@ def run_crawl(source_id: str) -> int:
             items_rejected = int(stats["items_rejected"])
             _close_run(
                 run_id,
-                status=_run_status(stats["finish_reason"], items_rejected),
+                status=_run_status(
+                    stats["finish_reason"], items_rejected, int(stats["quarantined"])
+                ),
                 items_ok=items_ok,
                 items_rejected=items_rejected,
             )
@@ -122,10 +124,12 @@ def _close_run(run_id: str, *, status: RunStatus, items_ok: int, items_rejected:
         )
 
 
-def _run_status(finish_reason: object, items_rejected: int) -> RunStatus:
-    """Map the Scrapy finish reason + reject count to a ledger status."""
+def _run_status(finish_reason: object, items_rejected: int, quarantined: int) -> RunStatus:
+    """Map the Scrapy finish reason + reject/quarantine counts to a ledger status."""
     if finish_reason != "finished":
         return "failed"
+    if quarantined > 0:  # volume gate tripped → the whole run committed nothing (ADR-0012)
+        return "quarantined"
     return "partial" if items_rejected > 0 else "success"
 
 
@@ -136,6 +140,7 @@ def _collect_stats(crawler: Crawler) -> dict[str, Any]:
         "items": stats.get("item_scraped_count", 0),
         "items_ok": stats.get(STAT_ITEMS_PERSISTED, 0),
         "items_rejected": stats.get(STAT_ITEMS_REJECTED, 0),
+        "quarantined": stats.get(STAT_QUALITY_QUARANTINED, 0),
         "requests": stats.get("downloader/request_count", 0),
         "finish_reason": stats.get("finish_reason"),
     }

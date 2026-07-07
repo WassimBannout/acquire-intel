@@ -148,7 +148,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
   recorded; identity bundles stay coherent.
 - **Verify:** harness tests. (FR-5, docs/04 §2.1–2.2)
 
-### T3.5 — Data-quality gates
+### [x] T3.5 — Data-quality gates
 - **Goal:** pipeline gates: shape (pydantic), range (price/plausibility), volume (±X% vs prior
   run), continuity (per-product jump) → quarantine/flag, never silent-store.
 - **Acceptance:** anomalous volume/range quarantined + recorded; nothing garbage stored.

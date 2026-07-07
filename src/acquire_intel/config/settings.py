@@ -12,6 +12,7 @@ key-for-key, in ``.env.example``.
 
 from __future__ import annotations
 
+from decimal import Decimal
 from functools import lru_cache
 
 from pydantic import ValidationError
@@ -77,6 +78,18 @@ class Settings(BaseSettings):
     """Seconds a banned proxy is quarantined before it returns to the rotation."""
     rotation_max_attempts: int = 4
     """Max identity rotations / cookie retries per request before it falls to the ban gate."""
+
+    # --- data-quality gates (docs/04 §3, ADR-0012) ---------------------------
+    quality_price_min: Decimal = Decimal("0")
+    """Lowest plausible price; an observation below it is quarantined (out_of_range)."""
+    quality_price_max: Decimal = Decimal("1000000")
+    """Highest plausible price; catches concatenated-digit scrape errors (out_of_range)."""
+    quality_max_jump_ratio: float = 10.0
+    """A product's price may not change by more than this factor vs. its last (discontinuous)."""
+    quality_volume_tolerance: float = 0.5
+    """A run's surviving item count must be within ±this fraction of the source baseline."""
+    quality_volume_min_baseline: int = 5
+    """Skip the volume gate until the baseline is at least this large (avoid false quarantines)."""
 
     # --- harness (tests only) ------------------------------------------------
     harness_base_url: str = "http://localhost:8999"

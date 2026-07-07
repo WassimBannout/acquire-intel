@@ -30,7 +30,7 @@ def _to_utc(value: datetime) -> datetime:
 # the after-validator pins the zone to UTC so every stored timestamp is comparable.
 UtcDatetime = Annotated[AwareDatetime, AfterValidator(_to_utc)]
 
-RunStatus = Literal["running", "success", "partial", "failed"]
+RunStatus = Literal["running", "success", "partial", "failed", "quarantined"]
 BanKind = Literal["rate_limited", "blocked", "captcha", "empty"]
 BanAction = Literal["backoff", "rotate_identity", "rotate_proxy", "give_up"]
 

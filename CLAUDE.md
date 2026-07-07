@@ -123,8 +123,8 @@ uv run python -m harness.server      # start the adversarial mock server
 
 **Phase 0, Phase 1 (M1) & Phase 2 (M2) complete (all merged to `main`); Phase 3 (M3) — the
 resilience centerpiece — in progress: adversarial mock harness (T3.1 ✅), ban classifier
-(T3.2 ✅), throttle/backoff/circuit-breaker (T3.3 ✅), and proxy + identity rotation (T3.4 ✅)
-land; data-quality gates (T3.5) next.** All three acquisition kinds (REST/HTML/GraphQL) feed one pipeline, and the
+(T3.2 ✅), throttle/backoff/circuit-breaker (T3.3 ✅), proxy + identity rotation (T3.4 ✅), and
+data-quality gates (T3.5 ✅) land; resilience integration + M3 gate (T3.6) next.** All three acquisition kinds (REST/HTML/GraphQL) feed one pipeline, and the
 first REST vertical slice runs end to end (crawl → pipeline → Postgres → API with freshness). The
 app is built
 **nested in this repo** (not a sibling `../acquire-intel-app`) — one coherent codebase, per the
@@ -383,7 +383,27 @@ products from fixtures through one pipeline + storage; strict ruff/mypy/pytest g
   suite **231 passed / 0 skipped** with the DB up; ruff + mypy clean; E2E happy path unaffected.
   **New: ADR-0011** (proxy pool + coherent identity rotation, escalate-on-block).
 
-**Next: T3.5 — data-quality gates**: pipeline gates (shape via pydantic, price range/plausibility,
-volume ±X% vs. the prior run, per-product continuity) that quarantine/flag anomalies and record
-them — never silently store garbage — proven with unit + integration tests, then T3.6 (full-scenario
-harness integration) closes the M3 gate.
+- **T3.5 — Data-quality gates ✅** (ADR-0012, docs/04 §3, docs/03 §3). The FR-9 "never silently
+  store garbage" gates, on top of shape validation (`RawProduct`/`normalize`, ADR-0008/0010).
+  `pipeline/quality.py` is **pure** (`check_range`, `check_continuity`, `check_volume` +
+  `GateThresholds.from_settings` + a `QualityIssue` StrEnum). **Per-item gates** (range =
+  plausible price band; continuity = a product's price may not jump more than `max_jump_ratio`
+  vs. its last committed price) run in `QualityGatePipeline` (@350, between normalize @300 and
+  persistence @400): a failing item is **dropped + counted** (`items_rejected` +
+  `acquire/quality/{issue}`), never persisted — priors are preloaded once per source at
+  `open_spider`. The **run-level volume gate** can only honour "quarantined, *not committed*"
+  (append-only store has no delete) by deferring the write, so `PersistencePipeline` is now
+  **run-atomic**: it **buffers** survivors and at `close_spider` compares the count to the
+  source's recent committed baseline (`CrawlRunRepository.baseline_count`); within tolerance →
+  flush all, else → **commit nothing** and record the anomaly. A quarantined run is a first-class
+  ledger status (`RunStatus` gained `quarantined`, no migration — a string column; the runner
+  maps the stat → `status="quarantined"`, `items_ok=0`). Config knobs +
+  `ACQUIRE_QUALITY_*` Scrapy settings. Proven: 20 tests (13 pure boundary tests + 7 pipeline,
+  incl. a **real-Postgres** proof that a volume-anomalous run stores **zero** rows and is flagged
+  `quarantined`). Full suite **251 passed / 0 skipped** with the DB up; ruff + mypy clean; E2E
+  happy path unaffected. **New: ADR-0012**.
+
+**Next: T3.6 — resilience integration (M3 gate)**: a full crawl against the harness across every
+scenario (429 / 403-block / CAPTCHA / cookie-wall / soft-ban / drift), asserting recovery, that
+`ban_events` are recorded with correct kinds/actions, and that **0 rows** in `price_observations`
+originate from a blocked/invalid/quarantined response — the milestone-closing end-to-end proof.
