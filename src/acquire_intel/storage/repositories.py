@@ -103,6 +103,13 @@ class ProductRepository:
         """Return the projection row by canonical id, or ``None``."""
         return self._session.get(Product, product_id)
 
+    def get_many(self, product_ids: list[str]) -> dict[str, Product]:
+        """Return the projection rows for ``product_ids`` keyed by id (missing ids omitted)."""
+        if not product_ids:
+            return {}
+        rows = self._session.scalars(select(Product).where(Product.id.in_(product_ids)))
+        return {row.id: row for row in rows}
+
     def list(
         self, *, source: str | None = None, q: str | None = None, limit: int = 24
     ) -> list[Product]:
@@ -169,6 +176,24 @@ class PriceObservationRepository:
             .distinct(PriceObservation.product_id)
         )
         return {obs.product_id: obs for obs in rows}
+
+    def history_since(
+        self, *, source: str | None, since: datetime | None
+    ) -> dict[str, list[PriceObservation]]:
+        """Observations grouped by product id (chronological), for deal detection (T4.1).
+
+        ``source`` filters by source id; ``since`` (inclusive) trims to the lookback window.
+        """
+        stmt = select(PriceObservation)
+        if source is not None:
+            stmt = stmt.where(PriceObservation.source_id == source)
+        if since is not None:
+            stmt = stmt.where(PriceObservation.captured_at >= since)
+        stmt = stmt.order_by(PriceObservation.product_id, PriceObservation.captured_at)
+        grouped: dict[str, list[PriceObservation]] = {}
+        for row in self._session.scalars(stmt):
+            grouped.setdefault(row.product_id, []).append(row)
+        return grouped
 
     def latest_amounts_for_source(self, source_id: str) -> dict[str, Decimal]:
         """Latest committed price per product for a source (for the continuity gate, T3.5).

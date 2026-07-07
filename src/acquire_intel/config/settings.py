@@ -91,6 +91,12 @@ class Settings(BaseSettings):
     quality_volume_min_baseline: int = 5
     """Skip the volume gate until the baseline is at least this large (avoid false quarantines)."""
 
+    # --- analytics: deal detection (docs/07, ADR-0013) -----------------------
+    deal_min_drop_pct: float = 10.0
+    """Minimum drop from a product's recent high (percent) to count as a deal."""
+    deal_window_days: int = 90
+    """Lookback window (days) for a product's recent high when detecting deals."""
+
     # --- harness (tests only) ------------------------------------------------
     harness_base_url: str = "http://localhost:8999"
 

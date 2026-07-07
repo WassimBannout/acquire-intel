@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from flask import Flask
 
+from acquire_intel.api.deals import deals_bp
 from acquire_intel.api.errors import register_error_handlers
 from acquire_intel.api.health import health_bp
 from acquire_intel.api.products import products_bp
@@ -23,4 +24,5 @@ def create_app() -> Flask:
     register_error_handlers(app)
     app.register_blueprint(health_bp, url_prefix=cfg.api_base_path)
     app.register_blueprint(products_bp, url_prefix=cfg.api_base_path)
+    app.register_blueprint(deals_bp, url_prefix=cfg.api_base_path)
     return app

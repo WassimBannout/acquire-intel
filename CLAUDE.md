@@ -121,11 +121,10 @@ uv run python -m harness.server      # start the adversarial mock server
 
 ## Current status
 
-**Phase 0, Phase 1 (M1) & Phase 2 (M2) complete (all merged to `main`); Phase 3 (M3) — the
-resilience centerpiece — COMPLETE (gate passed), pending PR: adversarial mock harness (T3.1 ✅),
-ban classifier (T3.2 ✅), throttle/backoff/circuit-breaker (T3.3 ✅), proxy + identity rotation
-(T3.4 ✅), data-quality gates (T3.5 ✅), and full-scenario resilience integration (T3.6 ✅) all
-land. Next: Phase 4 (M4) — intelligence + hardening.** All three acquisition kinds (REST/HTML/GraphQL) feed one pipeline, and the
+**Phase 0/1/2 complete (merged to `main`); Phase 3 (M3) — the resilience centerpiece — COMPLETE
+(gate passed), pending PR #5 (T3.1–T3.6 ✅); Phase 4 (M4) — intelligence + hardening — in progress:
+price history + deals (T4.1 ✅) lands; change/drift detection (T4.2) next.** All three acquisition
+kinds (REST/HTML/GraphQL) feed one pipeline, and the
 first REST vertical slice runs end to end (crawl → pipeline → Postgres → API with freshness). The
 app is built
 **nested in this repo** (not a sibling `../acquire-intel-app`) — one coherent codebase, per the
@@ -424,3 +423,24 @@ products from fixtures through one pipeline + storage; strict ruff/mypy/pytest g
 records the ban audit trail, and never persists a blocked/invalid/quarantined response — proven
 end-to-end against the harness. Pending PR to `main`. **Next: Phase 4 (M4) — intelligence +
 hardening** (price history/deals, dashboard, scheduler + admin trigger, metrics, change detection).
+
+### Phase 4 — Intelligence + hardening (M4)
+
+- **T4.1 — Price history + deals ✅** (ADR-0013, docs/07, FR-17/FR-13). Deal detection + `GET /deals`.
+  `analytics/deals.py` is **pure** (`compute_deal`/`rank_deals` over lightweight `PricePoint`s): a
+  **deal** is a product whose latest price is ≥ `DEAL_MIN_DROP_PCT` (default 10%) below its **recent
+  high** — the max price in a `DEAL_WINDOW_DAYS` (default 90) window of the product's *own* history
+  (never a cross-product comparison). Ranked by drop magnitude (ties by `product_id` → deterministic),
+  capped at `limit` (1–50, default 20), optional `source` filter. New `PriceObservationRepository.
+  history_since` + `ProductRepository.get_many`; new `DealOut`/`DealsResponse` serializers (camelCase,
+  string money, shared `dataAsOf`+`stale` freshness); `deals_bp` registered on the API base path. Each
+  deal carries `previousPrice`/`currentPrice`/`dropPct`/`since` so the drop is fully traceable. 12
+  tests (9 pure boundary + 3 Flask-client integration vs. Postgres: ranking, `source`/`limit` filters,
+  empty). Full suite **268 passed / 0 skipped** with the DB up; ruff + mypy clean. **New: ADR-0013**
+  (deal = drop vs. the product's own recent high).
+
+**Next: T4.2 — change / selector-drift detection**: flag when a source's output shape/volume shifts
+(alert, don't crash) — a drifted fixture raises a flagged run, not a silent bad crawl (FR-16).
+
+> Phase 4 is being built on a `phase-4-intelligence` branch stacked on the unmerged Phase 3
+> (`phase-3-resilience` / PR #5); once PR #5 merges, the Phase 4 PR retargets cleanly to `main`.

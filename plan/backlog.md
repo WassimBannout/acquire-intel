@@ -164,7 +164,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 
 ## Phase 4 — Intelligence + hardening (M4)
 
-### T4.1 — Price history + deals
+### [x] T4.1 — Price history + deals
 - **Goal:** analytics: per-product history; deals = significant drops vs. own history; `GET
   /deals`.
 - **Acceptance:** deterministic drop computation on fixtures; spec-conformant endpoint.

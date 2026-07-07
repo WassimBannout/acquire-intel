@@ -70,3 +70,19 @@ class PriceHistoryResponse(Freshness):
 
     product_id: str
     observations: list[PriceObservationOut]
+
+
+class DealOut(_CamelModel):
+    """A product whose latest price dropped from its recent high (``GET /deals``)."""
+
+    product: ProductOut
+    previous_price: MoneyOut  # the recent high
+    current_price: MoneyOut  # the latest price
+    drop_pct: float  # percent below the recent high
+    since: datetime  # when the product was at that high
+
+
+class DealsResponse(Freshness):
+    """``GET /deals`` body: freshness + deals ranked by drop magnitude."""
+
+    data: list[DealOut]
