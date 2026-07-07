@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Not found — AcquireIntel{% endblock %}
+
+{% block content %}
+<section class="panel not-found">
+  <h2>Product not found</h2>
+  <p class="empty">No product with id <code>{{ product_id }}</code> has been collected.</p>
+  <p><a href="{{ url_for('dashboard.overview') }}">&larr; back to the dashboard</a></p>
+</section>
+{% endblock %}

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}AcquireIntel{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}" />
+    <script defer src="{{ url_for('static', filename='vendor/chart.umd.min.js') }}"></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="{{ url_for('dashboard.overview') }}">AcquireIntel</a>
+      <span class="tagline">product &amp; price intelligence</span>
+    </header>
+    <main class="container">{% block content %}{% endblock %}</main>
+    <footer class="site-footer">
+      Resilient data-acquisition platform &middot; crawler health &amp; price history
+    </footer>
+    {% block scripts %}{% endblock %}
+  </body>
+</html>

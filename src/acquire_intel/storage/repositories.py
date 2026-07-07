@@ -290,6 +290,17 @@ class CrawlRunRepository:
         """Return the run by id, or ``None``."""
         return self._session.get(CrawlRun, run_id)
 
+    def recent(self, source_id: str, *, limit: int = 10) -> list[CrawlRun]:
+        """Return a source's most recent runs, newest-first (the dashboard health window)."""
+        return list(
+            self._session.scalars(
+                select(CrawlRun)
+                .where(CrawlRun.source_id == source_id)
+                .order_by(CrawlRun.started_at.desc())
+                .limit(limit)
+            )
+        )
+
 
 class BanEventRepository:
     """The anti-bot audit trail — append-only ``ban_events`` rows for a run (T3.6, docs/03 §2.4)."""
@@ -319,3 +330,18 @@ class BanEventRepository:
                 select(BanEvent).where(BanEvent.run_id == run_id).order_by(BanEvent.occurred_at)
             )
         )
+
+    def counts_by_action(self, run_ids: list[str]) -> dict[str, int]:
+        """Aggregate ban events by ``action_taken`` across runs (rotation totals, docs/07 §4)."""
+        if not run_ids:
+            return {}
+        rows = (
+            self._session.execute(
+                select(BanEvent.action_taken, func.count())
+                .where(BanEvent.run_id.in_(run_ids))
+                .group_by(BanEvent.action_taken)
+            )
+            .tuples()
+            .all()
+        )
+        return dict(rows)

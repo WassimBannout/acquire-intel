@@ -175,7 +175,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 - **Acceptance:** a drifted fixture raises a flagged run, not a silent bad crawl.
 - **Verify:** tests over drifted fixtures. (FR-16)
 
-### T4.3 — Dashboard
+### [x] T4.3 — Dashboard
 - **Goal:** Jinja + Chart.js: per-product price chart; crawler-health panel (ban-rate trend,
   freshness, items ok/rejected, rotations).
 - **Acceptance:** renders charts + health; loading/empty states.

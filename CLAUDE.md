@@ -123,8 +123,8 @@ uv run python -m harness.server      # start the adversarial mock server
 
 **Phase 0/1/2/3 complete and merged to `main` (Phase 3 (M3) — the resilience centerpiece — gate
 passed, merged via PR #5, T3.1–T3.6 ✅); Phase 4 (M4) — intelligence + hardening — in progress:
-price history + deals (T4.1 ✅) and change/selector-drift detection (T4.2 ✅) land; dashboard (T4.3)
-next.** All three acquisition
+price history + deals (T4.1 ✅), change/selector-drift detection (T4.2 ✅), and the dashboard
+(T4.3 ✅) land; /health/sources + metrics (T4.4) next.** All three acquisition
 kinds (REST/HTML/GraphQL) feed one pipeline, and the
 first REST vertical slice runs end to end (crawl → pipeline → Postgres → API with freshness). The
 app is built
@@ -454,8 +454,26 @@ end-to-end against the harness. **Merged to `main` via PR #5.** **Next: Phase 4 
   plus pure boundary tests. Full suite **275 passed / 0 skipped** with the DB up; ruff + mypy clean.
   **New: ADR-0014**.
 
-**Next: T4.3 — dashboard**: a light server-rendered dashboard (price history + crawler-health panels)
-over the read API (FR-14).
+- **T4.3 — Dashboard ✅** (ADR-0007, docs/07 §5, FR-14). A light server-rendered Jinja + Chart.js
+  dashboard over the read layer, mounted at the **site root** (the JSON API stays under
+  `API_BASE_PATH`). `GET /` renders a **crawler-health panel** (per source: last run status,
+  freshness vs. `stale_after`, items ok/rejected, ban count, identity/proxy **rotations**, and a
+  ban-events **sparkline**) plus the collected-products table; `GET /products/<id>` renders a price
+  chart fed **client-side** from the existing `/products/{id}/price-history` JSON endpoint (no
+  duplicate serialization) with a window selector + loading/empty states; unknown id → a 404 HTML
+  page (not problem+json). Routes stay thin (ADR-0007): the crawler-health assembly is the **pure**
+  `analytics/health.py::summarize_source` (RunPoint → SourceHealth: freshness rule, rotation tally,
+  oldest→newest trend), unit-testable without a DB; new read methods `CrawlRunRepository.recent` +
+  `BanEventRepository.counts_by_action`. **Chart.js 4.4.3 is vendored** under `api/static/vendor/`
+  so the demo works **offline** (no CDN). Theme-aware CSS (light/dark). 9 tests (5 pure health +
+  4 Flask view: overview health+products, empty states, chart scaffold, 404 page); full suite
+  **284 passed / 0 skipped** with the DB up; ruff + mypy clean. **Verified live**: harness crawl →
+  `/` (health panel + products), `/products/<id>` (chart + price-history URL), 404 page. No new ADR
+  (dashboard ratified by ADR-0007).
+
+**Next: T4.4 — /health/sources + metrics**: per-source health classification
+(healthy/degraded/stale/failing) from `crawl_runs` + `stale_after` + recent ban-rate, and the
+metrics catalog (docs/07 §4).
 
 > Phase 4 is being built on the `phase-4-intelligence` branch; PR #6 targets `main` directly
 > (Phase 3 merged via #5). The Phase 4 PR accumulates M4 tasks and merges when the phase completes.
