@@ -61,3 +61,6 @@ jobs:
 
       - name: Pytest (unit + integration)
         run: uv run pytest -q
+
+      - name: Dependency vulnerability audit (pip-audit)
+        run: uv run --with pip-audit pip-audit

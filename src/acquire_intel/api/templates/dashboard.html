@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}AcquireIntel — dashboard{% endblock %}
+
+{% block content %}
+<section class="panel" aria-labelledby="health-heading">
+  <div class="panel-head">
+    <h2 id="health-heading">Crawler health</h2>
+    {% if data_as_of %}
+      <span class="freshness {{ 'is-stale' if stale else 'is-fresh' }}">
+        {{ 'stale' if stale else 'fresh' }} &middot; as of {{ data_as_of.strftime('%Y-%m-%d %H:%M UTC') }}
+      </span>
+    {% endif %}
+  </div>
+
+  {% if not health %}
+    <p class="empty">No sources registered yet. Register a source and run
+      <code>acquire-intel crawl &lt;source&gt;</code> to populate the ledger.</p>
+  {% else %}
+    <div class="cards">
+      {% for h in health %}
+        <article class="card">
+          <div class="card-head">
+            <h3 class="source">{{ h.source_id }}</h3>
+            {% if h.last_status %}
+              <span class="badge status-{{ h.last_status }}">{{ h.last_status }}</span>
+            {% else %}
+              <span class="badge status-none">no runs</span>
+            {% endif %}
+          </div>
+
+          {% if h.last_run_at %}
+            <p class="meta">
+              last run {{ h.last_run_at.strftime('%Y-%m-%d %H:%M UTC') }}
+              &middot;
+              <span class="freshness {{ 'is-stale' if h.stale else 'is-fresh' }}">
+                {{ 'stale' if h.stale else 'fresh' }}
+              </span>
+            </p>
+
+            <dl class="stats">
+              <div><dt>items ok</dt><dd>{{ h.items_ok }}</dd></div>
+              <div><dt>rejected</dt><dd class="{{ 'warn' if h.items_rejected else '' }}">{{ h.items_rejected }}</dd></div>
+              <div><dt>bans</dt><dd class="{{ 'warn' if h.ban_events else '' }}">{{ h.ban_events }}</dd></div>
+              <div><dt>rotations</dt><dd>{{ h.rotations }}</dd></div>
+            </dl>
+
+            {% if h.trend %}
+              <div class="sparkline">
+                <span class="sparkline-label">ban-rate trend ({{ h.total_runs }} runs)</span>
+                <canvas class="trend" width="240" height="48"
+                        data-trend="{{ h.trend | tojson }}"
+                        aria-label="Ban events per recent run for {{ h.source_id }}"></canvas>
+              </div>
+            {% endif %}
+          {% else %}
+            <p class="empty small">No runs recorded yet.</p>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </div>
+  {% endif %}
+</section>
+
+<section class="panel" aria-labelledby="products-heading">
+  <h2 id="products-heading">Collected products</h2>
+  {% if not rows %}
+    <p class="empty">No products collected yet.</p>
+  {% else %}
+    <div class="table-scroll">
+      <table class="products">
+        <thead>
+          <tr>
+            <th scope="col">Product</th>
+            <th scope="col">Source</th>
+            <th scope="col">Latest price</th>
+            <th scope="col">Stock</th>
+            <th scope="col">Last seen</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for product, latest in rows %}
+            <tr>
+              <td>
+                <a href="{{ url_for('dashboard.product_detail', product_id=product.id) }}">
+                  {{ product.title }}
+                </a>
+              </td>
+              <td>{{ product.source_id }}</td>
+              <td>
+                {% if latest %}{{ latest.amount }} {{ latest.currency }}{% else %}&mdash;{% endif %}
+              </td>
+              <td>
+                {% if latest is none or latest.in_stock is none %}&mdash;
+                {% elif latest.in_stock %}<span class="in-stock">in stock</span>
+                {% else %}<span class="out-stock">out</span>{% endif %}
+              </td>
+              <td>{{ product.last_seen_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Render a compact ban-events sparkline per source (oldest → newest run).
+  window.addEventListener("DOMContentLoaded", function () {
+    if (typeof Chart === "undefined") return;
+    document.querySelectorAll("canvas.trend").forEach(function (canvas) {
+      var trend = JSON.parse(canvas.dataset.trend || "[]");
+      new Chart(canvas, {
+        type: "line",
+        data: {
+          labels: trend.map(function (_, i) { return i + 1; }),
+          datasets: [{
+            data: trend,
+            borderColor: "#d1495b",
+            backgroundColor: "rgba(209,73,91,0.15)",
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0,
+            borderWidth: 2,
+          }],
+        },
+        options: {
+          responsive: false,
+          plugins: { legend: { display: false }, tooltip: { enabled: true } },
+          scales: {
+            x: { display: false },
+            y: { display: false, beginAtZero: true, suggestedMax: 1 },
+          },
+        },
+      });
+    });
+  });
+</script>
+{% endblock %}

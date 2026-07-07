@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}{{ product.title }} — AcquireIntel{% endblock %}
+
+{% block content %}
+<p class="breadcrumb"><a href="{{ url_for('dashboard.overview') }}">&larr; all products</a></p>
+
+<section class="panel"
+         data-product-id="{{ product.id }}"
+         data-history-url="{{ api_base_path }}/products/{{ product.id }}/price-history"
+         id="product-view">
+  <div class="panel-head">
+    <div>
+      <h2>{{ product.title }}</h2>
+      <p class="meta">
+        {{ product.source_id }}
+        {% if product.brand %}&middot; {{ product.brand }}{% endif %}
+        &middot; <a href="{{ product.url }}" rel="nofollow noopener" target="_blank">source page</a>
+      </p>
+    </div>
+    <div class="price-now">
+      {% if latest %}
+        <span class="amount">{{ latest.amount }} {{ latest.currency }}</span>
+        <span class="freshness {{ 'is-stale' if stale else 'is-fresh' }}">
+          {{ 'stale' if stale else 'fresh' }}
+        </span>
+      {% else %}
+        <span class="amount">&mdash;</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="controls">
+    <label for="window">Window</label>
+    <select id="window">
+      <option value="30d">30 days</option>
+      <option value="90d" selected>90 days</option>
+      <option value="180d">180 days</option>
+      <option value="365d">365 days</option>
+      <option value="all">all</option>
+    </select>
+  </div>
+
+  <div class="chart-wrap">
+    <p id="chart-status" class="empty">Loading price history&hellip;</p>
+    <canvas id="price-chart" height="320" hidden></canvas>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.addEventListener("DOMContentLoaded", function () {
+    var view = document.getElementById("product-view");
+    var baseUrl = view.dataset.historyUrl;
+    var statusEl = document.getElementById("chart-status");
+    var canvas = document.getElementById("price-chart");
+    var windowSel = document.getElementById("window");
+    var chart = null;
+
+    function setStatus(msg) {
+      statusEl.textContent = msg;
+      statusEl.hidden = !msg;
+      canvas.hidden = !!msg;
+    }
+
+    function render(observations) {
+      if (typeof Chart === "undefined") {
+        setStatus("Chart library unavailable.");
+        return;
+      }
+      var labels = observations.map(function (o) { return o.capturedAt.slice(0, 10); });
+      var data = observations.map(function (o) { return parseFloat(o.price.amount); });
+      var currency = observations.length ? observations[0].price.currency : "";
+      if (chart) chart.destroy();
+      setStatus("");
+      chart = new Chart(canvas, {
+        type: "line",
+        data: {
+          labels: labels,
+          datasets: [{
+            label: "Price" + (currency ? " (" + currency + ")" : ""),
+            data: data,
+            borderColor: "#2a9d8f",
+            backgroundColor: "rgba(42,157,143,0.12)",
+            fill: true,
+            tension: 0.25,
+            pointRadius: 3,
+            borderWidth: 2,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: true } },
+          scales: { y: { beginAtZero: false } },
+        },
+      });
+    }
+
+    function load() {
+      setStatus("Loading price history…");
+      fetch(baseUrl + "?window=" + encodeURIComponent(windowSel.value))
+        .then(function (r) {
+          if (!r.ok) throw new Error("http " + r.status);
+          return r.json();
+        })
+        .then(function (body) {
+          var obs = body.observations || [];
+          if (!obs.length) { setStatus("No price observations in this window yet."); return; }
+          render(obs);
+        })
+        .catch(function () { setStatus("Could not load price history."); });
+    }
+
+    windowSel.addEventListener("change", load);
+    load();
+  });
+</script>
+{% endblock %}

@@ -24,6 +24,7 @@ from pydantic import ValidationError
 from scrapy.http import TextResponse
 
 from acquire_intel.acquisition.extractor import RawProduct
+from acquire_intel.acquisition.telemetry import record_parse
 from acquire_intel.monitoring.logging import get_logger
 
 if TYPE_CHECKING:
@@ -100,6 +101,7 @@ class DemoRestExtractor(scrapy.Spider):
                 emitted += 1
                 yield raw
 
+        record_parse(self, seen=len(products), mapped=emitted)
         _log.info("demo_rest.page_parsed", page=page, seen=len(products), emitted=emitted)
 
         # Follow-up page: a non-empty page implies there may be another (Shopify semantics).

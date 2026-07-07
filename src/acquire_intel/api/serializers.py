@@ -70,3 +70,57 @@ class PriceHistoryResponse(Freshness):
 
     product_id: str
     observations: list[PriceObservationOut]
+
+
+class DealOut(_CamelModel):
+    """A product whose latest price dropped from its recent high (``GET /deals``)."""
+
+    product: ProductOut
+    previous_price: MoneyOut  # the recent high
+    current_price: MoneyOut  # the latest price
+    drop_pct: float  # percent below the recent high
+    since: datetime  # when the product was at that high
+
+
+class DealsResponse(Freshness):
+    """``GET /deals`` body: freshness + deals ranked by drop magnitude."""
+
+    data: list[DealOut]
+
+
+class SourceHealthOut(_CamelModel):
+    """Per-source collection health (``specs/openapi.yaml`` ``SourceHealth``, T4.4)."""
+
+    source: str
+    status: str  # healthy | degraded | stale | failing
+    last_success_at: datetime | None = None
+    last_run_status: str | None = None  # the latest run's terminal status
+    ban_rate: float | None = None  # recent ban events / requests
+    stale_after_seconds: int
+
+
+class SourceHealthResponse(_CamelModel):
+    """``GET /health/sources`` body: an overall rollup + per-source health."""
+
+    overall: str  # healthy | degraded | stale | failing
+    sources: list[SourceHealthOut]
+
+
+class CrawlRunOut(_CamelModel):
+    """A crawl-run ledger row (``specs/openapi.yaml`` ``CrawlRun``, T4.5)."""
+
+    id: str
+    source: str
+    status: str  # running | success | partial | failed | quarantined | flagged
+    items_ok: int | None = None
+    items_rejected: int | None = None
+    ban_events: int | None = None
+    started_at: datetime
+    finished_at: datetime | None = None
+
+
+class CrawlAcceptedResponse(_CamelModel):
+    """``POST /admin/crawl`` 202 body: the launched (``running``) runs."""
+
+    accepted: bool
+    runs: list[CrawlRunOut]

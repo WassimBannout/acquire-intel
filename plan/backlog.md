@@ -164,39 +164,45 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 
 ## Phase 4 — Intelligence + hardening (M4)
 
-### T4.1 — Price history + deals
+### [x] T4.1 — Price history + deals
 - **Goal:** analytics: per-product history; deals = significant drops vs. own history; `GET
   /deals`.
 - **Acceptance:** deterministic drop computation on fixtures; spec-conformant endpoint.
 - **Verify:** unit + integration tests. (FR-17, FR-13)
 
-### T4.2 — Change / selector-drift detection
+### [x] T4.2 — Change / selector-drift detection
 - **Goal:** detect and flag when a source's output shape/volume shifts (alert, don't crash).
 - **Acceptance:** a drifted fixture raises a flagged run, not a silent bad crawl.
 - **Verify:** tests over drifted fixtures. (FR-16)
 
-### T4.3 — Dashboard
+### [x] T4.3 — Dashboard
 - **Goal:** Jinja + Chart.js: per-product price chart; crawler-health panel (ban-rate trend,
   freshness, items ok/rejected, rotations).
 - **Acceptance:** renders charts + health; loading/empty states.
 - **Verify:** view tests + observe running. (FR-14, docs/07 §5)
 
-### T4.4 — /health/sources + metrics
+### [x] T4.4 — /health/sources + metrics
 - **Goal:** per-source health (healthy/degraded/stale/failing) from `crawl_runs`; metrics
   catalog (docs/07 §4).
 - **Acceptance:** correct classification over seeded runs; ban-rate exposed.
 - **Verify:** integration tests. (FR-10)
 
-### T4.5 — Scheduler + admin crawl
+### [x] T4.5 — Scheduler + admin crawl
 - **Goal:** APScheduler per-source schedules; token-gated `POST /admin/crawl`; CLI parity.
 - **Acceptance:** scheduled tick triggers a crawl; no token → 401; token → 202.
 - **Verify:** integration tests; manual trigger. (FR-15, ADR-0007, docs/08)
 
-### T4.6 — Demo & CI/CD polish
+### [x] T4.6 — Demo & CI/CD polish
 - **Goal:** README with a 5-minute demo script (compose up → run harness crawl → see charts +
   ban-rate → run API); ensure CI runs full suite; `pip-audit` in CI.
 - **Acceptance:** a fresh clone can follow the README to a working demo; CI green.
 - **Verify:** dry-run the README steps. (portfolio gate)
+- **Done:** README "Run the app — 5-minute demo" (happy → data/charts; `block_after_n` →
+  identity rotation recovers the full catalogue; `captcha` → ban recorded, zero garbage stored);
+  `scripts/demo_seed.py` (upsert `demo_rest` at a harness scenario) + `harness.server
+  --block-after/--rate-limit-burst` so a single crawl can trigger a rotation; CI gains a
+  `pip-audit` step (full suite already runs). Dry-ran end to end vs. the harness (rotation →
+  3 products; captcha → banRate>0, observations unchanged); `pip-audit` clean.
 
 ---
 

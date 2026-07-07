@@ -91,6 +91,34 @@ class Settings(BaseSettings):
     quality_volume_min_baseline: int = 5
     """Skip the volume gate until the baseline is at least this large (avoid false quarantines)."""
 
+    # --- monitoring: change / selector-drift detection (docs/04 §3, ADR-0014) ---
+    drift_min_entries: int = 1
+    """Minimum item-shaped entries a crawl must see before drift can be assessed."""
+    drift_max_unmapped_ratio: float = 0.5
+    """Flag the run when more than this fraction of seen entries fail to map (format change)."""
+
+    # --- analytics: deal detection (docs/07, ADR-0013) -----------------------
+    deal_min_drop_pct: float = 10.0
+    """Minimum drop from a product's recent high (percent) to count as a deal."""
+    deal_window_days: int = 90
+    """Lookback window (days) for a product's recent high when detecting deals."""
+
+    # --- scheduler + admin crawl trigger (ADR-0007/0016, docs/08 §4, T4.5) ---
+    admin_rate_limit_per_minute: int = 6
+    """Max ``POST /admin/crawl`` calls per rolling minute before a 429 (docs/08 §4)."""
+    scheduler_enabled: bool = False
+    """Start the in-process APScheduler in the API. Off by default (opt-in for operator/demo)."""
+    scheduler_interval_seconds: int = 3600
+    """Default per-source crawl interval; overridable via ``crawl_policy.schedule_seconds``."""
+
+    # --- monitoring: per-source health classification (docs/07 §2 & §4, T4.4) ---
+    health_recent_runs: int = 5
+    """How many recent runs per source feed the ban-rate window + last-run signals."""
+    health_degraded_ban_rate: float = 0.2
+    """Recent ban-rate (ban events / requests) at/above which a source is at least degraded."""
+    health_fail_ban_rate: float = 0.5
+    """Recent ban-rate at/above which a source is classified failing."""
+
     # --- harness (tests only) ------------------------------------------------
     harness_base_url: str = "http://localhost:8999"
 

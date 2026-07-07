@@ -38,6 +38,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run an on-demand crawl for a registered source (wired in T0.4).",
     )
     crawl.add_argument("source", help="Registered source id to crawl, e.g. 'demo'.")
+    crawl.add_argument(
+        "--run-id",
+        default=None,
+        help="Adopt a pre-opened crawl_runs id (internal: used by the admin/scheduler trigger).",
+    )
 
     return parser
 
@@ -55,7 +60,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         # Import lazily so `--help`/`--version` don't pay the Scrapy import cost.
         from acquire_intel.acquisition import run_crawl
 
-        return run_crawl(args.source)
+        return run_crawl(args.source, args.run_id)
 
     # argparse rejects unknown commands before we reach here.
     parser.print_help()

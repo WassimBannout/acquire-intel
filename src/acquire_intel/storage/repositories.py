@@ -103,6 +103,13 @@ class ProductRepository:
         """Return the projection row by canonical id, or ``None``."""
         return self._session.get(Product, product_id)
 
+    def get_many(self, product_ids: list[str]) -> dict[str, Product]:
+        """Return the projection rows for ``product_ids`` keyed by id (missing ids omitted)."""
+        if not product_ids:
+            return {}
+        rows = self._session.scalars(select(Product).where(Product.id.in_(product_ids)))
+        return {row.id: row for row in rows}
+
     def list(
         self, *, source: str | None = None, q: str | None = None, limit: int = 24
     ) -> list[Product]:
@@ -169,6 +176,24 @@ class PriceObservationRepository:
             .distinct(PriceObservation.product_id)
         )
         return {obs.product_id: obs for obs in rows}
+
+    def history_since(
+        self, *, source: str | None, since: datetime | None
+    ) -> dict[str, list[PriceObservation]]:
+        """Observations grouped by product id (chronological), for deal detection (T4.1).
+
+        ``source`` filters by source id; ``since`` (inclusive) trims to the lookback window.
+        """
+        stmt = select(PriceObservation)
+        if source is not None:
+            stmt = stmt.where(PriceObservation.source_id == source)
+        if since is not None:
+            stmt = stmt.where(PriceObservation.captured_at >= since)
+        stmt = stmt.order_by(PriceObservation.product_id, PriceObservation.captured_at)
+        grouped: dict[str, list[PriceObservation]] = {}
+        for row in self._session.scalars(stmt):
+            grouped.setdefault(row.product_id, []).append(row)
+        return grouped
 
     def latest_amounts_for_source(self, source_id: str) -> dict[str, Decimal]:
         """Latest committed price per product for a source (for the continuity gate, T3.5).
@@ -265,6 +290,29 @@ class CrawlRunRepository:
         """Return the run by id, or ``None``."""
         return self._session.get(CrawlRun, run_id)
 
+    def recent(self, source_id: str, *, limit: int = 10) -> list[CrawlRun]:
+        """Return a source's most recent runs, newest-first (the dashboard health window)."""
+        return list(
+            self._session.scalars(
+                select(CrawlRun)
+                .where(CrawlRun.source_id == source_id)
+                .order_by(CrawlRun.started_at.desc())
+                .limit(limit)
+            )
+        )
+
+    def status_counts_by_source(self) -> dict[str, dict[str, int]]:
+        """All-time run counts grouped by source then status (``crawl_runs_total``, docs/07 §4)."""
+        rows = self._session.execute(
+            select(CrawlRun.source_id, CrawlRun.status, func.count()).group_by(
+                CrawlRun.source_id, CrawlRun.status
+            )
+        ).all()
+        out: dict[str, dict[str, int]] = {}
+        for source_id, status, count in rows:
+            out.setdefault(source_id, {})[status] = count
+        return out
+
 
 class BanEventRepository:
     """The anti-bot audit trail — append-only ``ban_events`` rows for a run (T3.6, docs/03 §2.4)."""
@@ -294,3 +342,45 @@ class BanEventRepository:
                 select(BanEvent).where(BanEvent.run_id == run_id).order_by(BanEvent.occurred_at)
             )
         )
+
+    def counts_by_action(self, run_ids: list[str]) -> dict[str, int]:
+        """Aggregate ban events by ``action_taken`` across runs (rotation totals, docs/07 §4)."""
+        if not run_ids:
+            return {}
+        rows = (
+            self._session.execute(
+                select(BanEvent.action_taken, func.count())
+                .where(BanEvent.run_id.in_(run_ids))
+                .group_by(BanEvent.action_taken)
+            )
+            .tuples()
+            .all()
+        )
+        return dict(rows)
+
+    def kind_counts_by_source(self) -> dict[str, dict[str, int]]:
+        """All-time ban counts grouped by source then kind (``ban_events_total``, docs/07 §4).
+
+        Ban rows carry only ``run_id`` (docs/03 §2.4), so the source is resolved by joining
+        ``crawl_runs``.
+        """
+        rows = self._session.execute(
+            select(CrawlRun.source_id, BanEvent.kind, func.count())
+            .join(CrawlRun, BanEvent.run_id == CrawlRun.id)
+            .group_by(CrawlRun.source_id, BanEvent.kind)
+        ).all()
+        out: dict[str, dict[str, int]] = {}
+        for source_id, kind, count in rows:
+            out.setdefault(source_id, {})[kind] = count
+        return out
+
+    def action_totals(self) -> dict[str, int]:
+        """All-time ban-event counts by ``action_taken`` (identity/proxy rotation totals)."""
+        rows = (
+            self._session.execute(
+                select(BanEvent.action_taken, func.count()).group_by(BanEvent.action_taken)
+            )
+            .tuples()
+            .all()
+        )
+        return dict(rows)

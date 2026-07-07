@@ -21,6 +21,9 @@ from scrapy.crawler import CrawlerProcess
 
 from acquire_intel.acquisition.registry import get_spider, known_sources
 from acquire_intel.acquisition.scrapy_settings import build_scrapy_settings
+from acquire_intel.acquisition.telemetry import STAT_ENTRIES_MAPPED, STAT_ENTRIES_SEEN
+from acquire_intel.analytics.drift import assess_drift
+from acquire_intel.config import get_settings
 from acquire_intel.monitoring.logging import bind_run, configure_logging, get_logger
 from acquire_intel.pipeline.item_pipeline import STAT_ITEMS_REJECTED
 from acquire_intel.pipeline.persistence import STAT_ITEMS_PERSISTED, STAT_QUALITY_QUARANTINED
@@ -39,14 +42,19 @@ if TYPE_CHECKING:
 _DEFAULT_CURRENCY = "USD"
 
 
-def run_crawl(source_id: str) -> int:
+def run_crawl(source_id: str, run_id: str | None = None) -> int:
     """Run a one-shot crawl for ``source_id``. Returns a process exit code.
 
     ``0`` on a completed crawl; ``2`` if the source is unknown or (for a persistable source)
     not registered in the ``sources`` table.
+
+    ``run_id`` is normally generated here (direct CLI use). The orchestrator (T4.5) instead
+    **pre-opens** the ``crawl_runs`` ledger row and passes its id so a ``POST /admin/crawl`` can
+    return the ``running`` run immediately; when adopted, we skip the open and only close it.
     """
     configure_logging()
-    run_id = uuid.uuid4().hex
+    owns_run = run_id is None  # did we mint this run (and thus open its ledger row)?
+    run_id = run_id or uuid.uuid4().hex
     log = get_logger("acquire_intel.crawl")
 
     with bind_run(run_id=run_id, source=source_id):
@@ -69,7 +77,8 @@ def run_crawl(source_id: str) -> int:
                 "default_currency": source["default_currency"],
                 "ban_events": ban_sink,  # shared list: middleware fills it, we persist it below
             }
-            _open_run(run_id, source_id)
+            if owns_run:  # an adopted run_id was already opened by the orchestrator (T4.5)
+                _open_run(run_id, source_id)
 
         log.info("crawl.started", spider=spider_cls.name)
         process = CrawlerProcess(settings=build_scrapy_settings(), install_root_handler=False)
@@ -87,18 +96,33 @@ def run_crawl(source_id: str) -> int:
             raise
 
         stats = _collect_stats(crawler)
-        log.info("crawl.finished", **stats, ban_events=len(ban_sink))
+        cfg = get_settings()
+        drift = assess_drift(
+            int(stats["entries_seen"]),
+            int(stats["entries_mapped"]),
+            min_entries=cfg.drift_min_entries,
+            max_unmapped_ratio=cfg.drift_max_unmapped_ratio,
+        )
+        log.info("crawl.finished", **stats, ban_events=len(ban_sink), drift=drift)
+        if drift:
+            # A format change: entries were seen but did not map. Alert, don't crash (FR-16).
+            log.warning(
+                "crawl.drift_detected",
+                entries_seen=stats["entries_seen"],
+                entries_mapped=stats["entries_mapped"],
+            )
         if persistable:
             items_ok = int(stats["items_ok"])
             items_rejected = int(stats["items_rejected"])
             _close_run(
                 run_id,
                 status=_run_status(
-                    stats["finish_reason"], items_rejected, int(stats["quarantined"])
+                    stats["finish_reason"], items_rejected, int(stats["quarantined"]), drift=drift
                 ),
                 items_ok=items_ok,
                 items_rejected=items_rejected,
                 ban_events=ban_sink,
+                requests=int(stats["requests"]),
             )
         return 0
 
@@ -130,6 +154,7 @@ def _close_run(
     items_ok: int,
     items_rejected: int,
     ban_events: list[BanEvent],
+    requests: int = 0,
 ) -> None:
     with session_scope() as session:
         # Append the run's ban audit trail (docs/03 §2.4) and record the count on the ledger row.
@@ -140,14 +165,20 @@ def _close_run(
             items_ok=items_ok,
             items_rejected=items_rejected,
             ban_events=recorded,
+            # ``requests`` powers the ban-rate metric (ban events / requests, docs/07 §4).
+            timings={"requests": requests},
             finished_at=datetime.now(UTC),
         )
 
 
-def _run_status(finish_reason: object, items_rejected: int, quarantined: int) -> RunStatus:
-    """Map the Scrapy finish reason + reject/quarantine counts to a ledger status."""
+def _run_status(
+    finish_reason: object, items_rejected: int, quarantined: int, *, drift: bool = False
+) -> RunStatus:
+    """Map the Scrapy finish reason + reject/quarantine/drift signals to a ledger status."""
     if finish_reason != "finished":
         return "failed"
+    if drift:  # a format change — entries seen but unmappable; alert, don't crash (ADR-0014)
+        return "flagged"
     if quarantined > 0:  # volume gate tripped → the whole run committed nothing (ADR-0012)
         return "quarantined"
     return "partial" if items_rejected > 0 else "success"
@@ -161,6 +192,8 @@ def _collect_stats(crawler: Crawler) -> dict[str, Any]:
         "items_ok": stats.get(STAT_ITEMS_PERSISTED, 0),
         "items_rejected": stats.get(STAT_ITEMS_REJECTED, 0),
         "quarantined": stats.get(STAT_QUALITY_QUARANTINED, 0),
+        "entries_seen": stats.get(STAT_ENTRIES_SEEN, 0),
+        "entries_mapped": stats.get(STAT_ENTRIES_MAPPED, 0),
         "requests": stats.get("downloader/request_count", 0),
         "finish_reason": stats.get("finish_reason"),
     }
