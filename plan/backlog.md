@@ -181,7 +181,7 @@ Verify**. Done only when it passes the verification gate (`docs/06` §5).
 - **Acceptance:** renders charts + health; loading/empty states.
 - **Verify:** view tests + observe running. (FR-14, docs/07 §5)
 
-### T4.4 — /health/sources + metrics
+### [x] T4.4 — /health/sources + metrics
 - **Goal:** per-source health (healthy/degraded/stale/failing) from `crawl_runs`; metrics
   catalog (docs/07 §4).
 - **Acceptance:** correct classification over seeded runs; ban-rate exposed.

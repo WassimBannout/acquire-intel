@@ -116,6 +116,7 @@ def run_crawl(source_id: str) -> int:
                 items_ok=items_ok,
                 items_rejected=items_rejected,
                 ban_events=ban_sink,
+                requests=int(stats["requests"]),
             )
         return 0
 
@@ -147,6 +148,7 @@ def _close_run(
     items_ok: int,
     items_rejected: int,
     ban_events: list[BanEvent],
+    requests: int = 0,
 ) -> None:
     with session_scope() as session:
         # Append the run's ban audit trail (docs/03 §2.4) and record the count on the ledger row.
@@ -157,6 +159,8 @@ def _close_run(
             items_ok=items_ok,
             items_rejected=items_rejected,
             ban_events=recorded,
+            # ``requests`` powers the ban-rate metric (ban events / requests, docs/07 §4).
+            timings={"requests": requests},
             finished_at=datetime.now(UTC),
         )
 

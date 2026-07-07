@@ -123,8 +123,9 @@ uv run python -m harness.server      # start the adversarial mock server
 
 **Phase 0/1/2/3 complete and merged to `main` (Phase 3 (M3) — the resilience centerpiece — gate
 passed, merged via PR #5, T3.1–T3.6 ✅); Phase 4 (M4) — intelligence + hardening — in progress:
-price history + deals (T4.1 ✅), change/selector-drift detection (T4.2 ✅), and the dashboard
-(T4.3 ✅) land; /health/sources + metrics (T4.4) next.** All three acquisition
+price history + deals (T4.1 ✅), change/selector-drift detection (T4.2 ✅), the dashboard
+(T4.3 ✅), and per-source health + metrics (T4.4 ✅) land; scheduler + admin crawl (T4.5) next.**
+All three acquisition
 kinds (REST/HTML/GraphQL) feed one pipeline, and the
 first REST vertical slice runs end to end (crawl → pipeline → Postgres → API with freshness). The
 app is built
@@ -471,9 +472,29 @@ end-to-end against the harness. **Merged to `main` via PR #5.** **Next: Phase 4 
   `/` (health panel + products), `/products/<id>` (chart + price-history URL), 404 page. No new ADR
   (dashboard ratified by ADR-0007).
 
-**Next: T4.4 — /health/sources + metrics**: per-source health classification
-(healthy/degraded/stale/failing) from `crawl_runs` + `stale_after` + recent ban-rate, and the
-metrics catalog (docs/07 §4).
+- **T4.4 — /health/sources + metrics ✅** (ADR-0015, docs/07 §2 & §4, FR-10, openapi `getSourceHealth`).
+  Per-source health + the ledger-derived metrics catalog. `analytics/health.py::classify_source` is
+  **pure** (`RunPoint` → `SourceHealthSummary`): over a source's last `HEALTH_RECENT_RUNS` (default 5)
+  runs it derives `last_success_at` (newest committed finish), `ban_rate` = Σ`ban_events` ÷ Σ`requests`
+  (None if no requests), and freshness, then classifies **failing** (latest `failed` or
+  `ban_rate ≥ HEALTH_FAIL_BAN_RATE` 0.5) > **stale** (freshest success older than `stale_after`, or a
+  registered source with no runs) > **degraded** (latest `partial`/`quarantined`/`flagged`,
+  `ban_rate ≥ HEALTH_DEGRADED_BAN_RATE` 0.2, or no committed run yet) > **healthy**; `overall_status`
+  rolls up to the worst (severity `healthy<degraded<stale<failing`). `GET /health/sources` (on the API
+  base path via a new `monitoring_bp`) serializes `overall` + per-source `SourceHealthOut` (camelCase:
+  status/lastSuccessAt/lastRunStatus/banRate/staleAfterSeconds). `GET /metrics` exposes the docs/07 §4
+  catalog as a JSON summary (`crawl_runs_total{source,status}`, `ban_events_total{source,kind}` via a
+  `ban_events`→`crawl_runs` join, `ban_rate`, latest items ok/rejected, `source_staleness_seconds`,
+  identity/proxy `rotations` from `action_taken`). **Enabling change:** the runner now persists
+  `crawl_runs.timings = {"requests": N}` (Scrapy `downloader/request_count`, no migration) as the
+  ban-rate denominator. New repo aggregates: `CrawlRunRepository.status_counts_by_source`,
+  `BanEventRepository.kind_counts_by_source`/`action_totals`. 20 tests (10 pure classify/rollup +
+  ban-rate math + 2 Flask integration over seeded runs covering **each** state + the metrics catalog);
+  full suite **295 passed / 0 skipped** with the DB up; ruff + mypy clean. Verified live (harness
+  happy+captcha crawls → both endpoints). **New: ADR-0015**.
+
+**Next: T4.5 — scheduler + admin crawl**: APScheduler per-source schedules + a token-gated
+`POST /admin/crawl`, all calling the same crawl orchestration (CLI parity).
 
 > Phase 4 is being built on the `phase-4-intelligence` branch; PR #6 targets `main` directly
 > (Phase 3 merged via #5). The Phase 4 PR accumulates M4 tasks and merges when the phase completes.

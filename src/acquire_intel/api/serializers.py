@@ -86,3 +86,21 @@ class DealsResponse(Freshness):
     """``GET /deals`` body: freshness + deals ranked by drop magnitude."""
 
     data: list[DealOut]
+
+
+class SourceHealthOut(_CamelModel):
+    """Per-source collection health (``specs/openapi.yaml`` ``SourceHealth``, T4.4)."""
+
+    source: str
+    status: str  # healthy | degraded | stale | failing
+    last_success_at: datetime | None = None
+    last_run_status: str | None = None  # the latest run's terminal status
+    ban_rate: float | None = None  # recent ban events / requests
+    stale_after_seconds: int
+
+
+class SourceHealthResponse(_CamelModel):
+    """``GET /health/sources`` body: an overall rollup + per-source health."""
+
+    overall: str  # healthy | degraded | stale | failing
+    sources: list[SourceHealthOut]

@@ -103,6 +103,14 @@ class Settings(BaseSettings):
     deal_window_days: int = 90
     """Lookback window (days) for a product's recent high when detecting deals."""
 
+    # --- monitoring: per-source health classification (docs/07 §2 & §4, T4.4) ---
+    health_recent_runs: int = 5
+    """How many recent runs per source feed the ban-rate window + last-run signals."""
+    health_degraded_ban_rate: float = 0.2
+    """Recent ban-rate (ban events / requests) at/above which a source is at least degraded."""
+    health_fail_ban_rate: float = 0.5
+    """Recent ban-rate at/above which a source is classified failing."""
+
     # --- harness (tests only) ------------------------------------------------
     harness_base_url: str = "http://localhost:8999"
 

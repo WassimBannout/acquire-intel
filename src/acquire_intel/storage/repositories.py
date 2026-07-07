@@ -301,6 +301,18 @@ class CrawlRunRepository:
             )
         )
 
+    def status_counts_by_source(self) -> dict[str, dict[str, int]]:
+        """All-time run counts grouped by source then status (``crawl_runs_total``, docs/07 §4)."""
+        rows = self._session.execute(
+            select(CrawlRun.source_id, CrawlRun.status, func.count()).group_by(
+                CrawlRun.source_id, CrawlRun.status
+            )
+        ).all()
+        out: dict[str, dict[str, int]] = {}
+        for source_id, status, count in rows:
+            out.setdefault(source_id, {})[status] = count
+        return out
+
 
 class BanEventRepository:
     """The anti-bot audit trail — append-only ``ban_events`` rows for a run (T3.6, docs/03 §2.4)."""
@@ -340,6 +352,33 @@ class BanEventRepository:
                 select(BanEvent.action_taken, func.count())
                 .where(BanEvent.run_id.in_(run_ids))
                 .group_by(BanEvent.action_taken)
+            )
+            .tuples()
+            .all()
+        )
+        return dict(rows)
+
+    def kind_counts_by_source(self) -> dict[str, dict[str, int]]:
+        """All-time ban counts grouped by source then kind (``ban_events_total``, docs/07 §4).
+
+        Ban rows carry only ``run_id`` (docs/03 §2.4), so the source is resolved by joining
+        ``crawl_runs``.
+        """
+        rows = self._session.execute(
+            select(CrawlRun.source_id, BanEvent.kind, func.count())
+            .join(CrawlRun, BanEvent.run_id == CrawlRun.id)
+            .group_by(CrawlRun.source_id, BanEvent.kind)
+        ).all()
+        out: dict[str, dict[str, int]] = {}
+        for source_id, kind, count in rows:
+            out.setdefault(source_id, {})[kind] = count
+        return out
+
+    def action_totals(self) -> dict[str, int]:
+        """All-time ban-event counts by ``action_taken`` (identity/proxy rotation totals)."""
+        rows = (
+            self._session.execute(
+                select(BanEvent.action_taken, func.count()).group_by(BanEvent.action_taken)
             )
             .tuples()
             .all()

@@ -14,14 +14,22 @@ presentation-focused (raw last status + a freshness flag).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterable, Sequence
     from datetime import datetime
 
 # Runs that actually committed data — a source's freshness is judged from these (docs/07 §2).
 _COMMITTED = frozenset({"success", "partial"})
+# Terminal statuses that committed no data but are not a hard failure (data-quality signals).
+_DEGRADED_STATUSES = frozenset({"partial", "quarantined", "flagged"})
+
+# The four per-source health states (specs/openapi.yaml ``SourceHealth.status``), ordered by
+# severity: a source's data promise is "fresh, complete data" — losing freshness (``stale``) is
+# more severe than noisy-but-flowing data (``degraded``); a hard error is the worst.
+HealthStatus = Literal["healthy", "degraded", "stale", "failing"]
+_SEVERITY: dict[HealthStatus, int] = {"healthy": 0, "degraded": 1, "stale": 2, "failing": 3}
 
 
 @dataclass(frozen=True)
@@ -34,6 +42,7 @@ class RunPoint:
     items_ok: int
     items_rejected: int
     ban_events: int
+    requests: int = 0  # from ``crawl_runs.timings.requests``; denominator of the ban-rate
 
 
 @dataclass(frozen=True)
@@ -108,3 +117,86 @@ def summarize_source(
         trend=[r.ban_events for r in reversed(runs)],
         total_runs=len(runs),
     )
+
+
+@dataclass(frozen=True)
+class SourceHealthSummary:
+    """A source's classified health (``specs/openapi.yaml`` ``SourceHealth``)."""
+
+    source: str
+    status: HealthStatus
+    last_success_at: datetime | None
+    last_run_status: str | None
+    ban_rate: float | None  # recent ban events / requests (None when no requests seen)
+    stale_after_seconds: int
+
+
+def _last_success_at(runs: Sequence[RunPoint]) -> datetime | None:
+    return next(
+        (r.finished_at for r in runs if r.status in _COMMITTED and r.finished_at is not None),
+        None,
+    )
+
+
+def classify_source(
+    source: str,
+    runs: Sequence[RunPoint],
+    *,
+    stale_after_seconds: int,
+    now: datetime,
+    degraded_ban_rate: float,
+    fail_ban_rate: float,
+) -> SourceHealthSummary:
+    """Classify a source ``healthy|degraded|stale|failing`` from its recent runs (newest-first).
+
+    Precedence (worst wins, docs/07 §2): **failing** if the latest run errored or the recent
+    ban-rate is at/above ``fail_ban_rate``; else **stale** if the freshest committed run is older
+    than ``stale_after_seconds`` (the source stopped producing fresh data); else **degraded** on a
+    quality signal (partial/quarantined/flagged, an elevated ban-rate, or no committed run yet);
+    else **healthy**. A registered source with no runs is ``stale`` (no fresh data yet).
+    """
+    if not runs:
+        return SourceHealthSummary(
+            source=source,
+            status="stale",
+            last_success_at=None,
+            last_run_status=None,
+            ban_rate=None,
+            stale_after_seconds=stale_after_seconds,
+        )
+
+    latest = runs[0]
+    last_success_at = _last_success_at(runs)
+    total_bans = sum(r.ban_events for r in runs)
+    total_requests = sum(r.requests for r in runs)
+    ban_rate = (total_bans / total_requests) if total_requests > 0 else None
+    stale = last_success_at is not None and (now - last_success_at).total_seconds() > (
+        stale_after_seconds
+    )
+
+    if latest.status == "failed" or (ban_rate is not None and ban_rate >= fail_ban_rate):
+        status: HealthStatus = "failing"
+    elif stale:
+        status = "stale"
+    elif (
+        latest.status in _DEGRADED_STATUSES
+        or (ban_rate is not None and ban_rate >= degraded_ban_rate)
+        or last_success_at is None
+    ):
+        status = "degraded"
+    else:
+        status = "healthy"
+
+    return SourceHealthSummary(
+        source=source,
+        status=status,
+        last_success_at=last_success_at,
+        last_run_status=latest.status,
+        ban_rate=ban_rate,
+        stale_after_seconds=stale_after_seconds,
+    )
+
+
+def overall_status(statuses: Iterable[HealthStatus]) -> HealthStatus:
+    """Roll per-source statuses up to the worst one (``healthy`` when there are no sources)."""
+    return max(statuses, key=lambda s: _SEVERITY[s], default="healthy")
