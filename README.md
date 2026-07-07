@@ -17,43 +17,37 @@ adversarial mock server** (no live site), so it is deterministic.
 **Prerequisites:** [uv](https://docs.astral.sh/uv/) and Docker.
 
 ```bash
-# 0. Install deps and set the three required env vars (DB URL + two secrets).
-uv sync
-cp .env.example .env        # then set DATABASE_URL, FLASK_SECRET_KEY, ADMIN_TOKEN
-#   DATABASE_URL example: postgresql+psycopg://acquire:acquire@localhost:5432/acquire
-
-# 1. Postgres + schema.
-docker compose up -d
-uv run alembic upgrade head
-
-# 2. Start the adversarial harness in another terminal. `--block-after 1` makes it block an
-#    identity after one request, so a single crawl has to rotate identity to finish.
-uv run python -m harness.server --block-after 1
+make setup     # once: write a dev .env, start Postgres, apply migrations
+make demo      # crawl the harness (happy + block_after_n + captcha) so there's data
+make run       # the app (JSON API + dashboard) at http://localhost:5000
 ```
+
+That's the whole thing — `make run` is the app (the Flask process serves **both** the JSON API and
+the server-rendered dashboard, so there's no separate frontend to start), and `make demo` feeds it
+data. `make help` lists every target. Prefer to see the moving parts? The same flow, by hand:
+
+<details><summary>Run it step by step (what <code>make demo</code> does)</summary>
 
 ```bash
-# 3. HAPPY PATH — seed a source at the harness `happy` scenario, then crawl it.
-uv run python scripts/demo_seed.py --scenario happy
-uv run acquire-intel crawl demo_rest
+# Terminal 1 — the adversarial store. `--block-after 1` blocks an identity after one request,
+# so a single crawl has to rotate identity to finish.
+uv run python -m harness.server --block-after 1
+
+# Terminal 2 — three crawls telling the resilience story:
+uv run python scripts/demo_seed.py --scenario happy         && uv run acquire-intel crawl demo_rest
 #   → 3 products + price observations persisted (run status: success).
 
-# 4. THE RESILIENCE STAR — the same crawl against a store that blocks you mid-pagination.
-uv run python scripts/demo_seed.py --scenario block_after_n
-uv run acquire-intel crawl demo_rest
-#   → the log shows `resilience.identity_rotated ... kind=blocked`, `identity_rotations=1`,
-#     and the FULL catalogue is still collected — it got a 403, rotated to a fresh coherent
-#     browser identity, and recovered.
+uv run python scripts/demo_seed.py --scenario block_after_n && uv run acquire-intel crawl demo_rest
+#   → log shows `resilience.identity_rotated ... kind=blocked`; the FULL catalogue is still
+#     collected — it got a 403, rotated to a fresh coherent browser identity, and recovered.
 
-# 5. NEVER CACHE GARBAGE — a CAPTCHA challenge is detected, recorded, and never stored as data.
-uv run python scripts/demo_seed.py --scenario captcha
-uv run acquire-intel crawl demo_rest
+uv run python scripts/demo_seed.py --scenario captcha       && uv run acquire-intel crawl demo_rest
 #   → `ban_events=1`, 0 items; `price_observations` is unchanged (a challenge page is not data).
-
-# 6. SERVE IT — the API + light dashboard.
-uv run flask --app acquire_intel.api run
 ```
 
-Then open / curl:
+</details>
+
+Once `make run` is up, open / curl:
 
 | URL | Shows |
 |-----|-------|

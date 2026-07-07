@@ -39,3 +39,7 @@ data/
 Thumbs.db
 .vscode/
 .idea/
+
+# local demo artifacts (Makefile)
+.harness.log
+.harness.pid
