@@ -24,7 +24,7 @@ make run       # the app (JSON API + dashboard) at http://localhost:5000
 
 That's the whole thing — `make run` is the app (the Flask process serves **both** the JSON API and
 the server-rendered dashboard, so there's no separate frontend to start), and `make demo` feeds it
-data. `make help` lists every target.
+data. `make help` lists every target. **[`RUN.md`](RUN.md)** is the full run/troubleshoot guide.
 
 ### Demo data vs. a real store — and switching between them
 

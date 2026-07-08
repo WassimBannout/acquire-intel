@@ -169,6 +169,16 @@ driving the harness end to end + a `pip-audit` gate in CI) have all landed — *
 full roadmap is delivered (28/28, all five milestones gated)**. Per-milestone, per-task, and per-FR
 detail follows.
 
+**Post-roadmap polish (on `main`, beyond the backlog):** a one-command dev workflow (`Makefile`:
+`make setup/demo/run/reset`; git-ignored dev `.env`; see `RUN.md`), and a **real live store** source
+(`live_rest`, `LiveRestExtractor`) that crawls any public Shopify `products.json` through the same
+engine as the mock — verified against deathwishcoffee.com (132 real products, `robots.txt` obeyed),
+with an easy `make demo` ⟷ `make live` switch. This closes the "is it just mock data?" gap: the
+engine demonstrably collects a real catalogue *and* proves its anti-bot layer against a controlled
+adversary. Two known hardening follow-ups remain (not roadmap tasks): isolate the test suite onto a
+separate DB (its integration tests `TRUNCATE` the shared dev DB), and return a graceful 503 (not a
+raw 500) when Postgres is unreachable.
+
 **Overall: M0 (Foundation), M1 (first REST slice), and M2 (more techniques) complete and gated —
 all three acquisition kinds (REST/HTML/GraphQL) now feed one pipeline; M3 (the resilience
 centerpiece) is COMPLETE and gated — harness, ban classifier, throttle/backoff/circuit-breaker,
