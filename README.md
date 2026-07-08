@@ -24,7 +24,30 @@ make run       # the app (JSON API + dashboard) at http://localhost:5000
 
 That's the whole thing — `make run` is the app (the Flask process serves **both** the JSON API and
 the server-rendered dashboard, so there's no separate frontend to start), and `make demo` feeds it
-data. `make help` lists every target. Prefer to see the moving parts? The same flow, by hand:
+data. `make help` lists every target.
+
+### Demo data vs. a real store — and switching between them
+
+The **same engine** crawls the local mock or a real store; only the source URL changes. The mock is
+the deterministic *adversary* used to prove the anti-bot layer (rotation/backoff/ban detection) —
+it isn't the product. To crawl **real products and prices** instead:
+
+```bash
+make live                                   # crawls https://www.deathwishcoffee.com (real Shopify store)
+make live STORE=https://www.allbirds.com    # …or any store with an open /products.json
+make run                                    # same app, now showing the real catalogue
+```
+
+- `make demo` → source **`demo_rest`** (mock harness): deterministic, tells the resilience story.
+- `make live` → source **`live_rest`** (a real store): real catalogue + current prices, obeying
+  `robots.txt`, public data only (docs/08). Verified live: 132 products from Death Wish Coffee.
+- The two are **separate sources** and coexist on the dashboard, so switching is just running the
+  other command. Want a clean slate showing only one? `make reset` wipes all crawled data first.
+
+Real **price history** accumulates once you crawl a store repeatedly over time — exactly what the
+built-in scheduler (`SCHEDULER_ENABLED`) is for. A single crawl gives real prices at one point in time.
+
+Prefer to see the moving parts? The same demo flow, by hand:
 
 <details><summary>Run it step by step (what <code>make demo</code> does)</summary>
 
