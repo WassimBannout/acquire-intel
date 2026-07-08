@@ -16,8 +16,10 @@ SOURCE ?= demo_rest
 SCENARIOS ?= happy block_after_n captcha
 HARNESS_PORT ?= 8080
 HARNESS_PIDFILE := .harness.pid
+STORE ?= https://www.deathwishcoffee.com
+CURRENCY ?= USD
 
-.PHONY: help setup env db migrate run demo crawl harness test clean
+.PHONY: help setup env db migrate run demo live reset crawl harness test clean
 
 help: ## show this help
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -56,7 +58,16 @@ demo: ## crawl the harness across scenarios so the dashboard has data to show
 	done
 	@kill `cat $(HARNESS_PIDFILE)` 2>/dev/null || true; rm -f $(HARNESS_PIDFILE)
 	@echo ""
-	@echo "demo done. now:  make run   → open http://localhost:$(PORT)"
+	@echo "demo done (source: demo_rest). now:  make run   → open http://localhost:$(PORT)"
+
+live: ## crawl a REAL Shopify store → real products + prices (STORE=<url> CURRENCY=<iso>)
+	uv run python scripts/seed_live.py --url $(STORE) --currency $(CURRENCY)
+	uv run acquire-intel crawl live_rest
+	@echo ""
+	@echo "live crawl done (source: live_rest, store: $(STORE)). now:  make run"
+
+reset: ## wipe all crawled data (fresh slate to switch demo <-> live)
+	uv run python scripts/reset_data.py
 
 crawl: ## crawl one source (SOURCE=demo_rest by default; seed it first)
 	uv run acquire-intel crawl $(SOURCE)
